@@ -351,3 +351,53 @@ func TestNull(t *testing.T) {
 		t.Errorf("expected nil, got %q (%v)", *userVal.Ptr, userVal.Ptr)
 	}
 }
+
+// func TestArray(t *testing.T) {
+// 	testVal := []string{"elem0", "elem1", "elem2"}
+
+// 	fcfVal := &struct {
+// 		Fields map[string]interface{}
+// 	}{
+// 		Fields: map[string]interface{}{
+// 			"arrayValue": map[string]interface{}{
+// 				"values": []interface{}{
+// 					map[string]interface{}{"stringValue": testVal[0]},
+// 					map[string]interface{}{"stringValue": testVal[1]},
+// 					map[string]interface{}{"stringValue": testVal[2]},
+// 				},
+// 			},
+// 		},
+// 	}
+
+// 	spew.Dump(fcfVal)
+
+// 	userVal := &struct {
+// 		Field []string
+// 	}{}
+// 	err := unmarshalMap(fcfVal, userVal)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
+// 	if len(testVal) != len(userVal.Field) {
+// 		t.Fatalf("array length mismatch: expected %v, got %v", testVal, userVal.Field)
+// 	}
+// 	for i, tVal := range testVal {
+// 		uVal := userVal.Field[i]
+// 		if tVal != uVal {
+// 			t.Errorf("idx %v: expected %q, got %q", i, tVal, uVal)
+// 		}
+// 	}
+// }
+
+// (string) (len=3) "arr": (map[string]interface {}) (len=1) {
+// 	(string) (len=10) "arrayValue": (map[string]interface {}) (len=1) {
+// 		(string) (len=6) "values": ([]interface {}) (len=2 cap=2) {
+// 			(map[string]interface {}) (len=1) {
+// 				(string) (len=11) "stringValue": (string) (len=5) "elem0"
+// 			},
+// 			(map[string]interface {}) (len=1) {
+// 				(string) (len=12) "integerValue": (string) (len=1) "4"
+// 			}
+// 		}
+// 	}
+// }

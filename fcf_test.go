@@ -11,9 +11,10 @@ func TestString(t *testing.T) {
 	testVal := "foo"
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-	fcfVal.Fields["Field"] = map[string]interface{}{
-		"stringValue": testVal,
+	}{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"stringValue": testVal},
+		},
 	}
 
 	userVal := &struct {
@@ -31,7 +32,7 @@ func TestString(t *testing.T) {
 func TestMissingFields(t *testing.T) {
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
+	}{map[string]interface{}{}}
 
 	userVal := &struct {
 		Field string
@@ -55,9 +56,10 @@ func TestReference(t *testing.T) {
 	fullVal := "projects/project-name/databases/(default)/documents" + testVal
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-	fcfVal.Fields["Field"] = map[string]interface{}{
-		"referenceValue": fullVal,
+	}{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"referenceValue": fullVal},
+		},
 	}
 
 	userVal := &struct {
@@ -97,9 +99,10 @@ func TestBoolPtr(t *testing.T) {
 	testVal := true
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-	fcfVal.Fields["Field"] = map[string]interface{}{
-		"booleanValue": testVal,
+	}{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"booleanValue": testVal},
+		},
 	}
 
 	userVal := &struct {
@@ -123,40 +126,20 @@ func TestInteger(t *testing.T) {
 	testValPtr := 1337
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-
-	fcfVal.Fields["Int"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal),
-	}
-	fcfVal.Fields["Int8"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal8),
-	}
-	fcfVal.Fields["Int16"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal16),
-	}
-	fcfVal.Fields["Int32"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal32),
-	}
-	fcfVal.Fields["Int64"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal64),
-	}
-	fcfVal.Fields["Uint"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal),
-	}
-	fcfVal.Fields["Uint8"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal8),
-	}
-	fcfVal.Fields["Uint16"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal16),
-	}
-	fcfVal.Fields["Uint32"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal32),
-	}
-	fcfVal.Fields["Uint64"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testVal64),
-	}
-	fcfVal.Fields["Uintptr"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testValPtr),
+	}{
+		Fields: map[string]interface{}{
+			"Int":     map[string]interface{}{"integerValue": strconv.Itoa(testVal)},
+			"Int8":    map[string]interface{}{"integerValue": strconv.Itoa(testVal8)},
+			"Int16":   map[string]interface{}{"integerValue": strconv.Itoa(testVal16)},
+			"Int32":   map[string]interface{}{"integerValue": strconv.Itoa(testVal32)},
+			"Int64":   map[string]interface{}{"integerValue": strconv.Itoa(testVal64)},
+			"Uint":    map[string]interface{}{"integerValue": strconv.Itoa(testVal)},
+			"Uint8":   map[string]interface{}{"integerValue": strconv.Itoa(testVal8)},
+			"Uint16":  map[string]interface{}{"integerValue": strconv.Itoa(testVal16)},
+			"Uint32":  map[string]interface{}{"integerValue": strconv.Itoa(testVal32)},
+			"Uint64":  map[string]interface{}{"integerValue": strconv.Itoa(testVal64)},
+			"Uintptr": map[string]interface{}{"integerValue": strconv.Itoa(testValPtr)},
+		},
 	}
 	userVal := &struct {
 		Int     int
@@ -218,18 +201,13 @@ func TestDecimal(t *testing.T) {
 
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-	fcfVal.Fields["Float32"] = map[string]interface{}{
-		"doubleValue": float64(testFloat32),
-	}
-	fcfVal.Fields["Float64"] = map[string]interface{}{
-		"doubleValue": testFloat64,
-	}
-	fcfVal.Fields["Int32"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testInt32),
-	}
-	fcfVal.Fields["Int64"] = map[string]interface{}{
-		"integerValue": strconv.Itoa(testInt64),
+	}{
+		Fields: map[string]interface{}{
+			"Float32": map[string]interface{}{"doubleValue": float64(testFloat32)},
+			"Float64": map[string]interface{}{"doubleValue": testFloat64},
+			"Int32":   map[string]interface{}{"integerValue": strconv.Itoa(testInt32)},
+			"Int64":   map[string]interface{}{"integerValue": strconv.Itoa(testInt64)},
+		},
 	}
 	userVal := &struct {
 		Float32 float32
@@ -259,9 +237,10 @@ func TestTimestamp(t *testing.T) {
 	testVal := time.Date(2019, time.February, 3, 1, 7, 5, 565000000, time.UTC)
 	fcfVal := &struct {
 		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-	fcfVal.Fields["Field"] = map[string]interface{}{
-		"timestampValue": testVal.Format(time.RFC3339Nano),
+	}{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"timestampValue": testVal.Format(time.RFC3339Nano)},
+		},
 	}
 
 	userVal := &struct {

@@ -298,3 +298,33 @@ func TestTimestamp(t *testing.T) {
 // 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
 // 	}
 // }
+
+func TestNull(t *testing.T) {
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"nullValue": nil},
+			"Ptr":   map[string]interface{}{"nullValue": nil},
+		},
+	}
+
+	s := "bar"
+	userVal := &struct {
+		Field string
+		Ptr   *string
+	}{
+		Field: "foo",
+		Ptr:   &s,
+	}
+	err := unmarshalMap(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+	if userVal.Field != "" {
+		t.Errorf("expected empty string, got %q", userVal.Field)
+	}
+	if userVal.Ptr != nil {
+		t.Errorf("expected nil, got %q (%v)", *userVal.Ptr, userVal.Ptr)
+	}
+}

@@ -49,6 +49,7 @@ func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
 	if (typeIndicator == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
 		(typeIndicator == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
 		(typeIndicator == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||
+		typeIndicator == "nullValue" ||
 		userKind == m[typeIndicator] {
 		return nil
 	}
@@ -76,7 +77,7 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 		typeIndicator := fcfUnionType.String()
 
 		fieldVal := usrVal.Field(i)
-		if fieldVal.Kind() == reflect.Ptr {
+		if fieldVal.Kind() == reflect.Ptr && typeIndicator != "nullValue" {
 			if fieldVal.IsNil() {
 				fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
 			}
@@ -100,6 +101,8 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 			} else {
 				unmarshalIntegerToFloat(fcfVal, fieldVal)
 			}
+		case "nullValue":
+			fieldVal.Set(reflect.Zero(fieldVal.Type()))
 		default:
 			// the conversion was added for float64 -> float32
 			// seems safe to do for all types

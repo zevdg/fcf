@@ -51,6 +51,28 @@ func TestMissingFields(t *testing.T) {
 	}
 }
 
+func TestTag(t *testing.T) {
+	testVal := "foo"
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"otherName": map[string]interface{}{"stringValue": testVal},
+		},
+	}
+
+	userVal := &struct {
+		Field string `fcf:"otherName"`
+	}{}
+	err := unmarshalMap(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+	if userVal.Field != testVal {
+		t.Errorf("expected %q, got %q", testVal, userVal.Field)
+	}
+}
+
 func TestReference(t *testing.T) {
 	testVal := "/col1/doc1/col2/doc2"
 	fullVal := "projects/project-name/databases/(default)/documents" + testVal

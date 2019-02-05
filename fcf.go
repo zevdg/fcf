@@ -61,6 +61,9 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 	for i := 0; i < usrVal.Type().NumField(); i++ {
 		fieldMeta := usrVal.Type().Field(i)
 		key := fieldMeta.Name
+		if tag := fieldMeta.Tag.Get("fcf"); tag != "" {
+			key = tag
+		}
 		wrappedVal := mapFields.MapIndex(reflect.ValueOf(key))
 		if !wrappedVal.IsValid() {
 			// field on user's struct doesn't exist in firestore data

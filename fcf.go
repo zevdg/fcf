@@ -71,8 +71,9 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 			continue
 		}
 		wrappedVal = wrappedVal.Elem()
-		typeIndicator := wrappedVal.MapKeys()[0]
-		fcfVal := wrappedVal.MapIndex(typeIndicator).Elem()
+		fcfUnionType := wrappedVal.MapKeys()[0]
+		fcfVal := wrappedVal.MapIndex(fcfUnionType).Elem()
+		typeIndicator := fcfUnionType.String()
 
 		fieldVal := usrVal.Field(i)
 		if fieldVal.Kind() == reflect.Ptr {
@@ -82,11 +83,11 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 			fieldVal = fieldVal.Elem()
 		}
 
-		err := assertTypeMatch(fieldVal.Type(), typeIndicator.String())
+		err := assertTypeMatch(fieldVal.Type(), typeIndicator)
 		if err != nil {
 			return fmt.Errorf("Error unmarshalling field %s: %v", fieldMeta.Name, err)
 		}
-		switch typeIndicator.String() {
+		switch typeIndicator {
 		case "referenceValue":
 			unmarshalReference(fcfVal, fieldVal)
 		case "timestampValue":
@@ -100,8 +101,9 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 				unmarshalIntegerToFloat(fcfVal, fieldVal)
 			}
 		default:
-			// the conversion is only required for float64 -> float32
-			// maybe be useful for other types as well
+			// the conversion was added for float64 -> float32
+			// seems safe to do for all types
+			// but may need to be restricted if it causes problems
 			fcfVal = fcfVal.Convert(fieldVal.Type())
 			fieldVal.Set(fcfVal)
 		}

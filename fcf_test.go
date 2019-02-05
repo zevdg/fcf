@@ -139,6 +139,29 @@ func TestBoolPtr(t *testing.T) {
 	}
 }
 
+func TestDynamic(t *testing.T) {
+	testVal := "foo"
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"stringValue": testVal},
+		},
+	}
+
+	userVal := &struct {
+		Field interface{}
+	}{}
+	err := unmarshalMap(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if userVal.Field.(string) != testVal {
+		t.Errorf("expected %q, got %q", testVal, userVal.Field)
+	}
+}
+
 func TestInteger(t *testing.T) {
 	testVal := 42
 	testVal8 := 8

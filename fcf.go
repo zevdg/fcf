@@ -46,6 +46,13 @@ func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
 		"booleanValue":   reflect.Bool,
 		"referenceValue": reflect.String,
 	}
+	if userKind == reflect.Interface {
+		if userType.NumMethod() == 0 {
+			return nil // empty interface is allowed
+		}
+		return fmt.Errorf("type mismatch: Cannot unmarshal firestore values into non-empty interface: %v", userType)
+	}
+
 	if (typeIndicator == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
 		(typeIndicator == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
 		(typeIndicator == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||

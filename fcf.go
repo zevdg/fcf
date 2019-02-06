@@ -61,17 +61,18 @@ func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
 }
 
 func Unmarshal(fcfMap interface{}, usrStruct interface{}) error {
-	return unmarshalMapToStruct(reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(usrStruct)))
+	_, err := unmarshalToStruct(reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(usrStruct)))
+	return err
 }
 
-func unmarshalMapToStruct(mapFields reflect.Value, usrVal reflect.Value) error {
+func unmarshalToStruct(fcfMap reflect.Value, usrVal reflect.Value) (reflect.Value, error) {
 	for i := 0; i < usrVal.Type().NumField(); i++ {
 		fieldMeta := usrVal.Type().Field(i)
 		key := fieldMeta.Name
 		if tag := fieldMeta.Tag.Get("fcf"); tag != "" {
 			key = tag
 		}
-		wrappedVal := mapFields.MapIndex(reflect.ValueOf(key))
+		wrappedVal := fcfMap.MapIndex(reflect.ValueOf(key))
 		if !wrappedVal.IsValid() {
 			// field on user's struct doesn't exist in firestore data
 			// skip it
@@ -92,76 +93,73 @@ func unmarshalMapToStruct(mapFields reflect.Value, usrVal reflect.Value) error {
 
 		err := assertTypeMatch(fieldVal.Type(), typeIndicator)
 		if err != nil {
-			return fmt.Errorf("Error unmarshalling field %s: %v", fieldMeta.Name, err)
+			return usrVal, fmt.Errorf("Error unmarshalling field %s: %v", fieldMeta.Name, err)
 		}
 		switch typeIndicator {
 		case "referenceValue":
-			unmarshalReference(fcfVal, fieldVal)
+			fcfVal = convReference(fcfVal)
+
 		case "timestampValue":
-			unmarshalTimestamp(fcfVal, fieldVal)
+			fcfVal = convTimestamp(fcfVal)
+
 		case "integerValue":
+			bits := fieldVal.Type().Bits()
 			if fieldVal.Kind() <= reflect.Int64 {
-				unmarshalInt(fcfVal, fieldVal)
+				fcfVal = convInt(fcfVal, bits)
 			} else if fieldVal.Kind() <= reflect.Uintptr {
-				unmarshalUint(fcfVal, fieldVal)
+				fcfVal = convUint(fcfVal, bits)
 			} else {
-				unmarshalIntegerToFloat(fcfVal, fieldVal)
+				fcfVal = convIntegerToFloat(fcfVal, bits)
+
 			}
-		case "mapValue":
-			unmarshalMapToStruct(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), fieldVal)
 		case "nullValue":
-			fieldVal.Set(reflect.Zero(fieldVal.Type()))
-		default:
-			// the conversion was added for float64 -> float32
-			// seems safe to do for all types
-			// but may need to be restricted if it causes problems
-			fcfVal = fcfVal.Convert(fieldVal.Type())
-			fieldVal.Set(fcfVal)
+			fcfVal = reflect.Zero(fieldVal.Type())
+
+		case "mapValue":
+			fcfVal, err = unmarshalToStruct(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), fieldVal)
+			if err != nil {
+				return usrVal, err
+			}
+			continue
 		}
-	}
-	return nil
-}
-
-func unmarshalReference(fcfVal reflect.Value, fieldVal reflect.Value) {
-	fieldVal.SetString(strings.Split(fcfVal.String(), "/databases/(default)/documents")[1])
-}
-
-func unmarshalInt(fcfVal reflect.Value, fieldVal reflect.Value) {
-	val, err := strconv.ParseInt(fcfVal.String(), 0, fieldVal.Type().Bits())
-	if err != nil {
-		panic(err) // shouldn't ever happen?
-	}
-	fieldVal.SetInt(val)
-}
-
-func unmarshalUint(fcfVal reflect.Value, fieldVal reflect.Value) {
-	val, err := strconv.ParseUint(fcfVal.String(), 0, fieldVal.Type().Bits())
-	if err != nil {
-		panic(err) // shouldn't ever happen?
-	}
-	fieldVal.SetUint(val)
-}
-
-func unmarshalIntegerToFloat(fcfVal reflect.Value, fieldVal reflect.Value) {
-	val, err := strconv.ParseFloat(fcfVal.String(), fieldVal.Type().Bits())
-	if err != nil {
-		panic(err) // shouldn't ever happen?
-	}
-	fieldVal.SetFloat(val)
-}
-
-func unmarshalDecimal(fcfVal reflect.Value, fieldVal reflect.Value) {
-	if fieldVal.Type().Bits() == 32 {
-		fieldVal.Set(fcfVal.Convert(fieldVal.Type()))
-	} else {
+		fcfVal = fcfVal.Convert(fieldVal.Type())
 		fieldVal.Set(fcfVal)
 	}
+	return usrVal, nil
 }
 
-func unmarshalTimestamp(fcfVal reflect.Value, fieldVal reflect.Value) {
+func convReference(fcfVal reflect.Value) reflect.Value {
+	return reflect.ValueOf(strings.Split(fcfVal.String(), "/databases/(default)/documents")[1])
+}
+
+func convTimestamp(fcfVal reflect.Value) reflect.Value {
 	t, err := time.Parse(time.RFC3339Nano, fcfVal.String())
 	if err != nil {
 		panic(err)
 	}
-	fieldVal.Set(reflect.ValueOf(t))
+	return reflect.ValueOf(t)
+}
+
+func convInt(fcfVal reflect.Value, bits int) reflect.Value {
+	val, err := strconv.ParseInt(fcfVal.String(), 0, bits)
+	if err != nil {
+		panic(err) // shouldn't ever happen?
+	}
+	return reflect.ValueOf(val)
+}
+
+func convUint(fcfVal reflect.Value, bits int) reflect.Value {
+	val, err := strconv.ParseUint(fcfVal.String(), 0, bits)
+	if err != nil {
+		panic(err) // shouldn't ever happen?
+	}
+	return reflect.ValueOf(val)
+}
+
+func convIntegerToFloat(fcfVal reflect.Value, bits int) reflect.Value {
+	val, err := strconv.ParseFloat(fcfVal.String(), bits)
+	if err != nil {
+		panic(err) // shouldn't ever happen?
+	}
+	return reflect.ValueOf(val)
 }

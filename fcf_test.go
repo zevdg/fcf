@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestString(t *testing.T) {
@@ -20,7 +22,7 @@ func TestString(t *testing.T) {
 	userVal := &struct {
 		Field string
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -38,7 +40,7 @@ func TestMissingFields(t *testing.T) {
 		Field string
 		Ptr   *bool
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -64,7 +66,7 @@ func TestTag(t *testing.T) {
 	userVal := &struct {
 		Field string `fcf:"otherName"`
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -87,7 +89,7 @@ func TestReference(t *testing.T) {
 	userVal := &struct {
 		Field string
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -108,7 +110,7 @@ func TestBool(t *testing.T) {
 	userVal := &struct {
 		Field bool
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -130,7 +132,7 @@ func TestBoolPtr(t *testing.T) {
 	userVal := &struct {
 		Field *bool
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -152,7 +154,7 @@ func TestDynamic(t *testing.T) {
 	userVal := &struct {
 		Field interface{}
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -199,7 +201,7 @@ func TestInteger(t *testing.T) {
 		Uint64  uint64
 		Uintptr uintptr
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -260,7 +262,7 @@ func TestDecimal(t *testing.T) {
 		Int32   float32
 		Int64   float64
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -291,7 +293,7 @@ func TestTimestamp(t *testing.T) {
 	userVal := &struct {
 		Field time.Time
 	}{}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -313,7 +315,7 @@ func TestTimestamp(t *testing.T) {
 // 	userVal := &struct {
 // 		Field []byte
 // 	}{}
-// 	err := unmarshalMap(fcfVal, userVal)
+// 	err := Unmarshal(fcfVal, userVal)
 // 	if err != nil {
 // 		t.Error(err)
 // 	}
@@ -340,7 +342,7 @@ func TestNull(t *testing.T) {
 		Field: "foo",
 		Ptr:   &s,
 	}
-	err := unmarshalMap(fcfVal, userVal)
+	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -351,6 +353,88 @@ func TestNull(t *testing.T) {
 		t.Errorf("expected nil, got %q (%v)", *userVal.Ptr, userVal.Ptr)
 	}
 }
+
+func TestMap(t *testing.T) {
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", "bar", "baz"
+
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"Struct": map[string]interface{}{
+				"mapValue": map[string]interface{}{
+					"fields": map[string]interface{}{
+						key0: map[string]interface{}{"stringValue": val0},
+						key1: map[string]interface{}{"stringValue": val1},
+						key2: map[string]interface{}{"stringValue": val2},
+					},
+				},
+			},
+			"Map": map[string]interface{}{
+				"mapValue": map[string]interface{}{
+					"fields": map[string]interface{}{
+						key0: map[string]interface{}{"stringValue": val0},
+						key1: map[string]interface{}{"stringValue": val1},
+						key2: map[string]interface{}{"stringValue": val2},
+					},
+				},
+			},
+		},
+	}
+
+	spew.Dump(fcfVal)
+
+	userVal := &struct {
+		Struct struct {
+			Elem0 string
+			Elem1 string
+			Elem2 string
+		}
+		// Map map[string]string
+	}{}
+	err := Unmarshal(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if val0 != userVal.Struct.Elem0 {
+		t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Struct.Elem0)
+	}
+	if val1 != userVal.Struct.Elem1 {
+		t.Errorf("%s: expected %q, got %q", key1, val1, userVal.Struct.Elem1)
+	}
+	if val2 != userVal.Struct.Elem2 {
+		t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Struct.Elem2)
+	}
+
+	// if 3 != len(userVal.Map) {
+	// 	t.Fatalf("Map length mismatch: expected %v, got %v", 3, userVal.Map)
+	// }
+
+	// if val0 != userVal.Map[key0] {
+	// 	t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Struct.Elem0)
+	// }
+	// if val1 != userVal.Map[key1] {
+	// 	t.Errorf("%s: expected %q, got %q", key1, val1, userVal.Struct.Elem1)
+	// }
+	// if val2 != userVal.Map[key2] {
+	// 	t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Struct.Elem2)
+	// }
+}
+
+// (string) (len=3) "Map": (map[string]interface {}) (len=1) {
+// 	(string) (len=8) "mapValue": (map[string]interface {}) (len=1) {
+// 		(string) (len=6) "fields": (map[string]interface {}) (len=2) {
+// 			(string) (len=3) "Baz": (map[string]interface {}) (len=1) {
+// 				(string) (len=12) "integerValue": (string) (len=2) "77"
+// 			},
+// 			(string) (len=3) "Foo": (map[string]interface {}) (len=1) {
+// 				(string) (len=11) "stringValue": (string) (len=3) "bar"
+// 			}
+// 		}
+// 	}
+// },
 
 // func TestArray(t *testing.T) {
 // 	testVal := []string{"elem0", "elem1", "elem2"}
@@ -374,7 +458,7 @@ func TestNull(t *testing.T) {
 // 	userVal := &struct {
 // 		Field []string
 // 	}{}
-// 	err := unmarshalMap(fcfVal, userVal)
+// 	err := Unmarshal(fcfVal, userVal)
 // 	if err != nil {
 // 		t.Error(err)
 // 	}

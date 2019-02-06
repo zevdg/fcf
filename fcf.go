@@ -36,16 +36,11 @@ type Value struct {
 // Decode reads the raw data from the fcf Value
 // and stores it in the user value pointed to by u
 func (v Value) Decode(u interface{}) error {
-	return unmarshalMap(v, u)
+	return Unmarshal(v, u)
 }
 
 func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
 	userKind := userType.Kind()
-	m := map[string]reflect.Kind{
-		"stringValue":    reflect.String,
-		"booleanValue":   reflect.Bool,
-		"referenceValue": reflect.String,
-	}
 	if userKind == reflect.Interface {
 		if userType.NumMethod() == 0 {
 			return nil // empty interface is allowed
@@ -56,16 +51,20 @@ func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
 	if (typeIndicator == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
 		(typeIndicator == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
 		(typeIndicator == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||
-		typeIndicator == "nullValue" ||
-		userKind == m[typeIndicator] {
+		(typeIndicator == "mapValue" && (userKind == reflect.Struct /* || userKind == reflect.Map */)) ||
+		((typeIndicator == "stringValue" || typeIndicator == "referenceValue") && userKind == reflect.String) ||
+		(typeIndicator == "booleanValue" && userKind == reflect.Bool) ||
+		typeIndicator == "nullValue" {
 		return nil
 	}
 	return fmt.Errorf("type mismatch: Cannot unmarshal firestore %s into a %s field", typeIndicator, userKind)
 }
 
-func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
-	mapFields := reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields")
-	usrVal := reflect.Indirect(reflect.ValueOf(usrStruct))
+func Unmarshal(fcfMap interface{}, usrStruct interface{}) error {
+	return unmarshalMapToStruct(reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(usrStruct)))
+}
+
+func unmarshalMapToStruct(mapFields reflect.Value, usrVal reflect.Value) error {
 	for i := 0; i < usrVal.Type().NumField(); i++ {
 		fieldMeta := usrVal.Type().Field(i)
 		key := fieldMeta.Name
@@ -108,6 +107,8 @@ func unmarshalMap(fcfMap interface{}, usrStruct interface{}) error {
 			} else {
 				unmarshalIntegerToFloat(fcfVal, fieldVal)
 			}
+		case "mapValue":
+			unmarshalMapToStruct(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), fieldVal)
 		case "nullValue":
 			fieldVal.Set(reflect.Zero(fieldVal.Type()))
 		default:

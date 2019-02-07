@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 func TestString(t *testing.T) {
@@ -165,7 +163,6 @@ func TestDynamic(t *testing.T) {
 	if userVal.String.(string) != testString {
 		t.Errorf("expected %q, got %q", testString, userVal.String)
 	}
-	t.Log("XXX")
 	if userVal.Int.(int) != testInt {
 		t.Errorf("expected %q, got %q", testInt, userVal.Int)
 	}
@@ -304,7 +301,6 @@ func TestTimestamp(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Logf("%v, %v, %v", testVal, testVal.Format(time.RFC3339Nano), userVal.Field)
 	if userVal.Field != testVal {
 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
 	}
@@ -361,7 +357,7 @@ func TestNull(t *testing.T) {
 	}
 }
 
-func TestMap(t *testing.T) {
+func TestMapAsStruct(t *testing.T) {
 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
 	val0, val1, val2 := "foo", "bar", "baz"
 
@@ -378,19 +374,8 @@ func TestMap(t *testing.T) {
 					},
 				},
 			},
-			"Map": map[string]interface{}{
-				"mapValue": map[string]interface{}{
-					"fields": map[string]interface{}{
-						key0: map[string]interface{}{"stringValue": val0},
-						key1: map[string]interface{}{"stringValue": val1},
-						key2: map[string]interface{}{"stringValue": val2},
-					},
-				},
-			},
 		},
 	}
-
-	spew.Dump(fcfVal)
 
 	userVal := &struct {
 		Struct struct {
@@ -398,7 +383,6 @@ func TestMap(t *testing.T) {
 			Elem1 string
 			Elem2 string
 		}
-		// Map map[string]string
 	}{}
 	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
@@ -414,20 +398,140 @@ func TestMap(t *testing.T) {
 	if val2 != userVal.Struct.Elem2 {
 		t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Struct.Elem2)
 	}
+}
 
-	// if 3 != len(userVal.Map) {
-	// 	t.Fatalf("Map length mismatch: expected %v, got %v", 3, userVal.Map)
-	// }
+func TestMapStatic(t *testing.T) {
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", "bar", "baz"
 
-	// if val0 != userVal.Map[key0] {
-	// 	t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Struct.Elem0)
-	// }
-	// if val1 != userVal.Map[key1] {
-	// 	t.Errorf("%s: expected %q, got %q", key1, val1, userVal.Struct.Elem1)
-	// }
-	// if val2 != userVal.Map[key2] {
-	// 	t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Struct.Elem2)
-	// }
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"Map": map[string]interface{}{
+				"mapValue": map[string]interface{}{
+					"fields": map[string]interface{}{
+						key0: map[string]interface{}{"stringValue": val0},
+						key1: map[string]interface{}{"stringValue": val1},
+						key2: map[string]interface{}{"stringValue": val2},
+					},
+				},
+			},
+		},
+	}
+
+	userVal := &struct {
+		Map map[string]string
+	}{}
+	err := Unmarshal(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if 3 != len(userVal.Map) {
+		t.Fatalf("Map length mismatch: expected %v, got %v", 3, userVal.Map)
+	}
+
+	if val0 != userVal.Map[key0] {
+		t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Map[key0])
+	}
+	if val1 != userVal.Map[key1] {
+		t.Errorf("%s: expected %q, got %q", key1, val1, userVal.Map[key1])
+	}
+	if val2 != userVal.Map[key2] {
+		t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Map[key2])
+	}
+}
+
+func TestMapDynamic(t *testing.T) {
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", 3, true
+
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"Map": map[string]interface{}{
+				"mapValue": map[string]interface{}{
+					"fields": map[string]interface{}{
+						key0: map[string]interface{}{"stringValue": val0},
+						key1: map[string]interface{}{"integerValue": strconv.Itoa(val1)},
+						key2: map[string]interface{}{"booleanValue": val2},
+					},
+				},
+			},
+		},
+	}
+
+	userVal := &struct {
+		Map map[string]interface{}
+	}{}
+	err := Unmarshal(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if 3 != len(userVal.Map) {
+		t.Fatalf("Map length mismatch: expected %v, got %v", 3, userVal.Map)
+	}
+
+	if val0 != userVal.Map[key0] {
+		t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Map[key0])
+	}
+	if val1 != userVal.Map[key1] {
+		t.Errorf("%s: expected %v, got %v", key1, val1, userVal.Map[key1])
+	}
+	if val2 != userVal.Map[key2] {
+		t.Errorf("%s: expected %v, got %v", key2, val2, userVal.Map[key2])
+	}
+}
+
+func TestMapAsInterface(t *testing.T) {
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", 3, true
+
+	fcfVal := &struct {
+		Fields map[string]interface{}
+	}{
+		Fields: map[string]interface{}{
+			"Map": map[string]interface{}{
+				"mapValue": map[string]interface{}{
+					"fields": map[string]interface{}{
+						key0: map[string]interface{}{"stringValue": val0},
+						key1: map[string]interface{}{"integerValue": strconv.Itoa(val1)},
+						key2: map[string]interface{}{"booleanValue": val2},
+					},
+				},
+			},
+		},
+	}
+
+	userVal := &struct {
+		Map interface{}
+	}{}
+	err := Unmarshal(fcfVal, userVal)
+	if err != nil {
+		t.Error(err)
+	}
+
+	userMap, ok := userVal.Map.(map[string]interface{})
+	if !ok {
+		t.Fatalf("type assertion failed: expected %v, got %v", userMap, userVal.Map)
+	}
+
+	if 3 != len(userMap) {
+		t.Fatalf("Map length mismatch: expected %v, got %v", 3, userMap)
+	}
+
+	if val0 != userMap[key0] {
+		t.Errorf("%s: expected %q, got %q", key0, val0, userMap[key0])
+	}
+	if val1 != userMap[key1] {
+		t.Errorf("%s: expected %v, got %v", key1, val1, userMap[key1])
+	}
+	if val2 != userMap[key2] {
+		t.Errorf("%s: expected %v, got %v", key2, val2, userMap[key2])
+	}
 }
 
 // (string) (len=3) "Map": (map[string]interface {}) (len=1) {

@@ -39,7 +39,7 @@ func (v Value) Decode(u interface{}) error {
 	return Unmarshal(v, u)
 }
 
-func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
+func assertTypeMatch(userType reflect.Type, fcfType string) error {
 	userKind := userType.Kind()
 	if userKind == reflect.Interface {
 		if userType.NumMethod() == 0 {
@@ -48,48 +48,109 @@ func assertTypeMatch(userType reflect.Type, typeIndicator string) error {
 		return fmt.Errorf("type mismatch: Cannot unmarshal firestore values into non-empty interface: %v", userType)
 	}
 
-	if (typeIndicator == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
-		(typeIndicator == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
-		(typeIndicator == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||
-		(typeIndicator == "mapValue" && (userKind == reflect.Struct /* || userKind == reflect.Map */)) ||
-		((typeIndicator == "stringValue" || typeIndicator == "referenceValue") && userKind == reflect.String) ||
-		(typeIndicator == "booleanValue" && userKind == reflect.Bool) ||
-		typeIndicator == "nullValue" {
+	if (fcfType == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
+		(fcfType == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
+		(fcfType == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||
+		(fcfType == "mapValue" && (userKind == reflect.Struct || userKind == reflect.Map)) ||
+		((fcfType == "stringValue" || fcfType == "referenceValue") && userKind == reflect.String) ||
+		(fcfType == "booleanValue" && userKind == reflect.Bool) ||
+		fcfType == "nullValue" {
 		return nil
 	}
-	return fmt.Errorf("type mismatch: Cannot unmarshal firestore %s into a %s field", typeIndicator, userKind)
+	return fmt.Errorf("type mismatch: Cannot unmarshal firestore %s into a %s field", fcfType, userKind)
 }
 
 func Unmarshal(fcfMap interface{}, usrStruct interface{}) error {
-	_, err := unmarshalToStruct(reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(usrStruct)))
-	return err
+	return unmarshal(reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(usrStruct)))
 }
 
-type Field struct {
-	name          string
-	key           string
-	typeIndicator string
-	fcf           reflect.Value
-	val           reflect.Value
+type staticField struct {
+	name    string
+	fcfType string
+	fcf     reflect.Value
+	val     reflect.Value
 }
 
-func unwrap(wrappedVal reflect.Value) (unwrappedVal reflect.Value, typeIndicator string) {
-	wrappedVal = wrappedVal.Elem() //is this necessary?
+func (f staticField) Name() string {
+	return f.name
+}
+
+func (f staticField) FcfType() string {
+	return f.fcfType
+}
+
+func (f staticField) Fcf() reflect.Value {
+	return f.fcf
+}
+
+func (f staticField) Val() reflect.Value {
+	return f.val
+}
+
+func (f staticField) Set(newVal reflect.Value) {
+	f.val.Set(newVal)
+}
+
+type dynamicField struct {
+	key     reflect.Value
+	fcfType string
+	fcf     reflect.Value
+	parent  reflect.Value
+	val     reflect.Value
+}
+
+func (f dynamicField) Name() string {
+	return f.key.String()
+}
+func (f dynamicField) FcfType() string {
+	return f.fcfType
+}
+
+func (f dynamicField) Fcf() reflect.Value {
+	return f.fcf
+}
+
+func (f dynamicField) Val() reflect.Value {
+	return f.val
+}
+
+func (f dynamicField) Set(newVal reflect.Value) {
+	f.parent.SetMapIndex(f.key, newVal)
+}
+
+type field interface {
+	Name() string
+	FcfType() string
+	Fcf() reflect.Value
+	Val() reflect.Value
+	Set(reflect.Value)
+}
+
+func unwrap(wrappedVal reflect.Value) (unwrappedVal reflect.Value, fcfType string) {
+	wrappedVal = wrappedVal.Elem() // why is this necessary?
 	fcfUnionType := wrappedVal.MapKeys()[0]
 	return wrappedVal.MapIndex(fcfUnionType).Elem(), fcfUnionType.String()
 }
 
-func getFields(fcfMap reflect.Value, usrVal reflect.Value) (fields []Field) {
+func getFields(fcfMap reflect.Value, usrVal reflect.Value) (fields []field) {
+	if usrVal.Kind() == reflect.Interface && usrVal.Type().NumMethod() == 0 {
+		var nilMap map[string]interface{}
+		usrVal.Set(reflect.MakeMapWithSize(reflect.TypeOf(nilMap), len(fcfMap.MapKeys())))
+		usrVal = usrVal.Elem()
+	}
 	if usrVal.Kind() == reflect.Map {
+		if usrVal.IsNil() {
+			usrVal.Set(reflect.MakeMapWithSize(usrVal.Type(), len(fcfMap.MapKeys())))
+		}
 		fieldType := usrVal.Type().Elem()
 		for _, key := range fcfMap.MapKeys() {
-			fcfVal, typeIndicator := unwrap(fcfMap.MapIndex(key))
-			fields = append(fields, Field{
-				name:          key.String(),
-				key:           key.String(),
-				typeIndicator: typeIndicator,
-				fcf:           fcfVal,
-				val:           reflect.Zero(fieldType),
+			fcfVal, fcfType := unwrap(fcfMap.MapIndex(key))
+			fields = append(fields, dynamicField{
+				key:     key,
+				fcfType: fcfType,
+				fcf:     fcfVal,
+				parent:  usrVal,
+				val:     reflect.Zero(fieldType),
 			})
 		}
 		return fields
@@ -107,37 +168,36 @@ func getFields(fcfMap reflect.Value, usrVal reflect.Value) (fields []Field) {
 				// skip it
 				continue
 			}
-			fcfVal, typeIndicator := unwrap(wrappedVal)
+			fcfVal, fcfType := unwrap(wrappedVal)
 
 			fieldVal := usrVal.Field(i)
-			if fieldVal.Kind() == reflect.Ptr && typeIndicator != "nullValue" {
+			if fieldVal.Kind() == reflect.Ptr && fcfType != "nullValue" {
 				if fieldVal.IsNil() {
 					fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
 				}
 				fieldVal = fieldVal.Elem()
 			}
-			fields = append(fields, Field{
-				name:          fieldMeta.Name,
-				key:           key,
-				typeIndicator: typeIndicator,
-				fcf:           fcfVal,
-				val:           fieldVal,
+			fields = append(fields, staticField{
+				name:    fieldMeta.Name,
+				fcfType: fcfType,
+				fcf:     fcfVal,
+				val:     fieldVal,
 			})
 		}
 		return fields
 	}
-	panic("can't get fields usrVal.Kind() " + usrVal.Kind().String())
+	panic(fmt.Sprintf("Can only get fields Struct, Map, or empty interface types, not %v", usrVal.Type()))
 }
 
-func unmarshalToStruct(fcfMap reflect.Value, usrVal reflect.Value) (reflect.Value, error) {
+func unmarshal(fcfMap reflect.Value, usrVal reflect.Value) error {
 	for _, field := range getFields(fcfMap, usrVal) {
-		fcfVal := field.fcf
-		fieldType := field.val.Type()
-		err := assertTypeMatch(fieldType, field.typeIndicator)
+		fcfVal := field.Fcf()
+		fieldType := field.Val().Type()
+		err := assertTypeMatch(fieldType, field.FcfType())
 		if err != nil {
-			return usrVal, fmt.Errorf("Error unmarshalling field %s: %v", field.name, err)
+			return fmt.Errorf("Error unmarshalling field %s: %v", field.Name(), err)
 		}
-		switch field.typeIndicator {
+		switch field.FcfType() {
 		case "referenceValue":
 			fcfVal = convReference(fcfVal)
 
@@ -161,21 +221,20 @@ func unmarshalToStruct(fcfMap reflect.Value, usrVal reflect.Value) (reflect.Valu
 			fcfVal = reflect.Zero(fieldType)
 
 		case "mapValue":
-			if fieldType.Kind() == reflect.Struct {
-				fcfVal, err = unmarshalToStruct(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), field.val)
-				if err != nil {
-					return usrVal, err
-				}
-				continue
-			} else {
-
+			err = unmarshal(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), field.Val())
+			if err != nil {
+				return fmt.Errorf("Error on field %v: %v", field.Name(), err)
 			}
+			// unmarshal sets values in-place
+			// so no need to convert and set
+			continue
 		}
 
 		fcfVal = fcfVal.Convert(fieldType)
-		field.val.Set(fcfVal)
+		field.Set(fcfVal)
 	}
-	return usrVal, nil
+
+	return nil
 }
 
 func convReference(fcfVal reflect.Value) reflect.Value {

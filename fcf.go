@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// FirestoreEvent is the payload of a Firestore event.
+// Event is the payload of a Firestore event.
 type Event struct {
 	OldValue   Value `json:"oldValue"`
 	Value      Value `json:"value"`
@@ -17,7 +17,7 @@ type Event struct {
 	} `json:"updateMask"`
 }
 
-// FirestoreValue holds Firestore fields.
+// Value holds Firestore fields.
 type Value struct {
 	CreateTime time.Time `json:"createTime"`
 	// Fields is the data for this value. The type depends on the format of your
@@ -36,7 +36,7 @@ type Value struct {
 // Decode reads the raw data from the fcf Value
 // and stores it in the user value pointed to by u
 func (v Value) Decode(u interface{}) error {
-	return Unmarshal(v, u)
+	return unmarshal(reflect.Indirect(reflect.ValueOf(v)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(u)))
 }
 
 func assertTypeMatch(userType reflect.Type, fcfType string) error {
@@ -58,10 +58,6 @@ func assertTypeMatch(userType reflect.Type, fcfType string) error {
 		return nil
 	}
 	return fmt.Errorf("type mismatch: Cannot unmarshal firestore %s into a %s field", fcfType, userKind)
-}
-
-func Unmarshal(fcfMap interface{}, usrStruct interface{}) error {
-	return unmarshal(reflect.Indirect(reflect.ValueOf(fcfMap)).FieldByName("Fields"), reflect.Indirect(reflect.ValueOf(usrStruct)))
 }
 
 type staticField struct {
@@ -127,7 +123,7 @@ type field interface {
 }
 
 func unwrap(wrappedVal reflect.Value) (unwrappedVal reflect.Value, fcfType string) {
-	wrappedVal = wrappedVal.Elem() // why is this necessary?
+	wrappedVal = wrappedVal.Elem() // sheds interface{} outer layer to reveal map[string]interface{}
 	fcfUnionType := wrappedVal.MapKeys()[0]
 	return wrappedVal.MapIndex(fcfUnionType).Elem(), fcfUnionType.String()
 }

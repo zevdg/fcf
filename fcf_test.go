@@ -9,9 +9,7 @@ import (
 
 func TestString(t *testing.T) {
 	testVal := "foo"
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Field": map[string]interface{}{"stringValue": testVal},
 		},
@@ -20,7 +18,7 @@ func TestString(t *testing.T) {
 	userVal := &struct {
 		Field string
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -30,15 +28,15 @@ func TestString(t *testing.T) {
 }
 
 func TestMissingFields(t *testing.T) {
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{map[string]interface{}{}}
+	fcfVal := Value{Fields: map[string]interface{}{
+		"otherField": map[string]interface{}{"stringValue": "foo"},
+	}}
 
 	userVal := &struct {
 		Field string
 		Ptr   *bool
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -53,9 +51,7 @@ func TestMissingFields(t *testing.T) {
 
 func TestTag(t *testing.T) {
 	testVal := "foo"
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"otherName": map[string]interface{}{"stringValue": testVal},
 		},
@@ -64,7 +60,7 @@ func TestTag(t *testing.T) {
 	userVal := &struct {
 		Field string `fcf:"otherName"`
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -76,9 +72,7 @@ func TestTag(t *testing.T) {
 func TestReference(t *testing.T) {
 	testVal := "/col1/doc1/col2/doc2"
 	fullVal := "projects/project-name/databases/(default)/documents" + testVal
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Field": map[string]interface{}{"referenceValue": fullVal},
 		},
@@ -87,7 +81,7 @@ func TestReference(t *testing.T) {
 	userVal := &struct {
 		Field string
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -98,17 +92,16 @@ func TestReference(t *testing.T) {
 
 func TestBool(t *testing.T) {
 	testVal := true
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{make(map[string]interface{})}
-	fcfVal.Fields["Field"] = map[string]interface{}{
-		"booleanValue": testVal,
+	fcfVal := Value{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"booleanValue": testVal},
+		},
 	}
 
 	userVal := &struct {
 		Field bool
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -119,9 +112,7 @@ func TestBool(t *testing.T) {
 
 func TestBoolPtr(t *testing.T) {
 	testVal := true
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Field": map[string]interface{}{"booleanValue": testVal},
 		},
@@ -130,7 +121,7 @@ func TestBoolPtr(t *testing.T) {
 	userVal := &struct {
 		Field *bool
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -142,9 +133,7 @@ func TestBoolPtr(t *testing.T) {
 func TestDynamic(t *testing.T) {
 	testString := "foo"
 	testInt := 3
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"String": map[string]interface{}{"stringValue": testString},
 			"Int":    map[string]interface{}{"integerValue": strconv.Itoa(testInt)},
@@ -155,7 +144,7 @@ func TestDynamic(t *testing.T) {
 		String interface{}
 		Int    interface{}
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -175,9 +164,7 @@ func TestInteger(t *testing.T) {
 	testVal32 := 32
 	testVal64 := 64
 	testValPtr := 1337
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Int":     map[string]interface{}{"integerValue": strconv.Itoa(testVal)},
 			"Int8":    map[string]interface{}{"integerValue": strconv.Itoa(testVal8)},
@@ -205,7 +192,7 @@ func TestInteger(t *testing.T) {
 		Uint64  uint64
 		Uintptr uintptr
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -250,9 +237,7 @@ func TestDecimal(t *testing.T) {
 	testInt32 := 32
 	testInt64 := 64
 
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Float32": map[string]interface{}{"doubleValue": float64(testFloat32)},
 			"Float64": map[string]interface{}{"doubleValue": testFloat64},
@@ -266,7 +251,7 @@ func TestDecimal(t *testing.T) {
 		Int32   float32
 		Int64   float64
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -286,9 +271,7 @@ func TestDecimal(t *testing.T) {
 
 func TestTimestamp(t *testing.T) {
 	testVal := time.Date(2019, time.February, 3, 1, 7, 5, 565000000, time.UTC)
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Field": map[string]interface{}{"timestampValue": testVal.Format(time.RFC3339Nano)},
 		},
@@ -297,7 +280,7 @@ func TestTimestamp(t *testing.T) {
 	userVal := &struct {
 		Field time.Time
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -318,7 +301,7 @@ func TestTimestamp(t *testing.T) {
 // 	userVal := &struct {
 // 		Field []byte
 // 	}{}
-// 	err := Unmarshal(fcfVal, userVal)
+// 	err := fcfVal.Decode(userVal)
 // 	if err != nil {
 // 		t.Error(err)
 // 	}
@@ -328,9 +311,7 @@ func TestTimestamp(t *testing.T) {
 // }
 
 func TestNull(t *testing.T) {
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Field": map[string]interface{}{"nullValue": nil},
 			"Ptr":   map[string]interface{}{"nullValue": nil},
@@ -345,7 +326,7 @@ func TestNull(t *testing.T) {
 		Field: "foo",
 		Ptr:   &s,
 	}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -361,9 +342,7 @@ func TestMapAsStruct(t *testing.T) {
 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
 	val0, val1, val2 := "foo", "bar", "baz"
 
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Struct": map[string]interface{}{
 				"mapValue": map[string]interface{}{
@@ -384,7 +363,7 @@ func TestMapAsStruct(t *testing.T) {
 			Elem2 string
 		}
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -404,9 +383,7 @@ func TestMapStatic(t *testing.T) {
 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
 	val0, val1, val2 := "foo", "bar", "baz"
 
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Map": map[string]interface{}{
 				"mapValue": map[string]interface{}{
@@ -423,7 +400,7 @@ func TestMapStatic(t *testing.T) {
 	userVal := &struct {
 		Map map[string]string
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -447,9 +424,7 @@ func TestMapDynamic(t *testing.T) {
 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
 	val0, val1, val2 := "foo", 3, true
 
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Map": map[string]interface{}{
 				"mapValue": map[string]interface{}{
@@ -466,7 +441,7 @@ func TestMapDynamic(t *testing.T) {
 	userVal := &struct {
 		Map map[string]interface{}
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -490,9 +465,7 @@ func TestMapAsInterface(t *testing.T) {
 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
 	val0, val1, val2 := "foo", 3, true
 
-	fcfVal := &struct {
-		Fields map[string]interface{}
-	}{
+	fcfVal := Value{
 		Fields: map[string]interface{}{
 			"Map": map[string]interface{}{
 				"mapValue": map[string]interface{}{
@@ -509,7 +482,7 @@ func TestMapAsInterface(t *testing.T) {
 	userVal := &struct {
 		Map interface{}
 	}{}
-	err := Unmarshal(fcfVal, userVal)
+	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
@@ -569,7 +542,7 @@ func TestMapAsInterface(t *testing.T) {
 // 	userVal := &struct {
 // 		Field []string
 // 	}{}
-// 	err := Unmarshal(fcfVal, userVal)
+// 	err := fcfVal.Decode(userVal)
 // 	if err != nil {
 // 		t.Error(err)
 // 	}

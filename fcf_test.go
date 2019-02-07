@@ -142,25 +142,32 @@ func TestBoolPtr(t *testing.T) {
 }
 
 func TestDynamic(t *testing.T) {
-	testVal := "foo"
+	testString := "foo"
+	testInt := 3
 	fcfVal := &struct {
 		Fields map[string]interface{}
 	}{
 		Fields: map[string]interface{}{
-			"Field": map[string]interface{}{"stringValue": testVal},
+			"String": map[string]interface{}{"stringValue": testString},
+			"Int":    map[string]interface{}{"integerValue": strconv.Itoa(testInt)},
 		},
 	}
 
 	userVal := &struct {
-		Field interface{}
+		String interface{}
+		Int    interface{}
 	}{}
 	err := Unmarshal(fcfVal, userVal)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if userVal.Field.(string) != testVal {
-		t.Errorf("expected %q, got %q", testVal, userVal.Field)
+	if userVal.String.(string) != testString {
+		t.Errorf("expected %q, got %q", testString, userVal.String)
+	}
+	t.Log("XXX")
+	if userVal.Int.(int) != testInt {
+		t.Errorf("expected %q, got %q", testInt, userVal.Int)
 	}
 }
 

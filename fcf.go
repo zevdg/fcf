@@ -67,6 +67,10 @@ type staticField struct {
 	val     reflect.Value
 }
 
+func (f staticField) String() string {
+	return fmt.Sprintf("staticField{ %s - %s - %s }", f.name, f.fcfType, info(f.val))
+}
+
 func (f staticField) Name() string {
 	return f.name
 }
@@ -79,8 +83,8 @@ func (f staticField) Fcf() reflect.Value {
 	return f.fcf
 }
 
-func (f staticField) Val() reflect.Value {
-	return f.val
+func (f staticField) Type() reflect.Type {
+	return f.val.Type()
 }
 
 func (f staticField) Set(newVal reflect.Value) {
@@ -92,7 +96,10 @@ type dynamicField struct {
 	fcfType string
 	fcf     reflect.Value
 	parent  reflect.Value
-	val     reflect.Value
+}
+
+func (f dynamicField) String() string {
+	return fmt.Sprintf("dynamicField{ %s - %s - %s }", f.key, f.fcfType, info(f.parent))
 }
 
 func (f dynamicField) Name() string {
@@ -106,19 +113,40 @@ func (f dynamicField) Fcf() reflect.Value {
 	return f.fcf
 }
 
-func (f dynamicField) Val() reflect.Value {
-	return f.val
+func (f dynamicField) Type() reflect.Type {
+	return f.parent.Type().Elem()
+}
+
+func (f dynamicField) getOrInit() reflect.Value {
+	v := f.parent.MapIndex(f.key)
+	if v.IsValid() {
+		return v
+	}
+	f.Set(reflect.Zero(f.Type()))
+	return f.parent.MapIndex(f.key)
 }
 
 func (f dynamicField) Set(newVal reflect.Value) {
 	f.parent.SetMapIndex(f.key, newVal)
 }
 
+func d(prefix string, x reflect.Value) {
+	fmt.Printf("%s: %s\n", prefix, info(x))
+}
+func info(x reflect.Value) string {
+	return fmt.Sprintf("%v | %v | %v\n", x.Kind(), x.Type(), x)
+}
+
 type field interface {
 	Name() string
 	FcfType() string
 	Fcf() reflect.Value
-	Val() reflect.Value
+	Type() reflect.Type
+	String() string
+	setter
+}
+
+type setter interface {
 	Set(reflect.Value)
 }
 
@@ -128,29 +156,27 @@ func unwrap(wrappedVal reflect.Value) (unwrappedVal reflect.Value, fcfType strin
 	return wrappedVal.MapIndex(fcfUnionType).Elem(), fcfUnionType.String()
 }
 
-func getFields(fcfMap reflect.Value, usrVal reflect.Value) (fields []field) {
-	if usrVal.Kind() == reflect.Interface && usrVal.Type().NumMethod() == 0 {
-		var nilMap map[string]interface{}
-		usrVal.Set(reflect.MakeMapWithSize(reflect.TypeOf(nilMap), len(fcfMap.MapKeys())))
-		usrVal = usrVal.Elem()
+func getFields(fcfMap reflect.Value, uVal setter) (fields []field, err error) {
+	var usrVal reflect.Value
+	switch v := uVal.(type) {
+	case reflect.Value:
+		usrVal = v
+	case staticField:
+		usrVal = v.val
+	case dynamicField:
+		usrVal = v.getOrInit()
 	}
-	if usrVal.Kind() == reflect.Map {
-		if usrVal.IsNil() {
-			usrVal.Set(reflect.MakeMapWithSize(usrVal.Type(), len(fcfMap.MapKeys())))
+
+	if !((usrVal.Kind() == reflect.Interface && usrVal.Type().NumMethod() == 0) ||
+		usrVal.Kind() == reflect.Struct ||
+		usrVal.Kind() == reflect.Map) {
+		typeStr := usrVal.Kind().String()
+		if usrVal.IsValid() {
+			typeStr = usrVal.Type().String()
 		}
-		fieldType := usrVal.Type().Elem()
-		for _, key := range fcfMap.MapKeys() {
-			fcfVal, fcfType := unwrap(fcfMap.MapIndex(key))
-			fields = append(fields, dynamicField{
-				key:     key,
-				fcfType: fcfType,
-				fcf:     fcfVal,
-				parent:  usrVal,
-				val:     reflect.Zero(fieldType),
-			})
-		}
-		return fields
+		return nil, fmt.Errorf("Can only get fields from Struct, Map, or empty interface types, not %v", typeStr)
 	}
+
 	if usrVal.Kind() == reflect.Struct {
 		for i := 0; i < usrVal.Type().NumField(); i++ {
 			fieldMeta := usrVal.Type().Field(i)
@@ -180,15 +206,41 @@ func getFields(fcfMap reflect.Value, usrVal reflect.Value) (fields []field) {
 				val:     fieldVal,
 			})
 		}
-		return fields
+		return fields, nil
 	}
-	panic(fmt.Sprintf("Can only get fields Struct, Map, or empty interface types, not %v", usrVal.Type()))
+
+	var mapType reflect.Type
+	if usrVal.Kind() == reflect.Interface {
+		var x map[string]interface{}
+		mapType = reflect.TypeOf(x)
+	} else {
+		mapType = usrVal.Type()
+	}
+	if usrVal.IsNil() {
+		usrVal = reflect.MakeMapWithSize(mapType, len(fcfMap.MapKeys()))
+		uVal.Set(usrVal)
+	}
+	for _, key := range fcfMap.MapKeys() {
+		fcfVal, fcfType := unwrap(fcfMap.MapIndex(key))
+		fields = append(fields, dynamicField{
+			key:     key,
+			fcfType: fcfType,
+			fcf:     fcfVal,
+			parent:  usrVal,
+		})
+	}
+	return fields, nil
 }
 
-func unmarshal(fcfMap reflect.Value, usrVal reflect.Value) error {
-	for _, field := range getFields(fcfMap, usrVal) {
+func unmarshal(fcfMap reflect.Value, usrVal setter) error {
+	fields, err := getFields(fcfMap, usrVal)
+	if err != nil {
+		return err
+	}
+	for _, field := range fields {
 		fcfVal := field.Fcf()
-		fieldType := field.Val().Type()
+		fieldType := field.Type()
+
 		err := assertTypeMatch(fieldType, field.FcfType())
 		if err != nil {
 			return fmt.Errorf("Error unmarshalling field %s: %v", field.Name(), err)
@@ -217,7 +269,7 @@ func unmarshal(fcfMap reflect.Value, usrVal reflect.Value) error {
 			fcfVal = reflect.Zero(fieldType)
 
 		case "mapValue":
-			err = unmarshal(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), field.Val())
+			err = unmarshal(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), field)
 			if err != nil {
 				return fmt.Errorf("Error on field %v: %v", field.Name(), err)
 			}

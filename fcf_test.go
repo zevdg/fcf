@@ -507,14 +507,84 @@ func TestMapAsInterface(t *testing.T) {
 	}
 }
 
+func TestMapNested(t *testing.T) {
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", "bar", "baz"
+
+	fcfVal := Value{
+		Fields: map[string]interface{}{
+			"Outer": map[string]interface{}{
+				"mapValue": map[string]interface{}{
+					"fields": map[string]interface{}{
+						"Inner1": map[string]interface{}{
+							"mapValue": map[string]interface{}{
+								"fields": map[string]interface{}{
+									key0: map[string]interface{}{"stringValue": val0},
+									key1: map[string]interface{}{"stringValue": val1},
+									key2: map[string]interface{}{"stringValue": val2},
+								},
+							},
+						},
+						"Inner2": map[string]interface{}{
+							"mapValue": map[string]interface{}{
+								"fields": map[string]interface{}{
+									key0: map[string]interface{}{"stringValue": val0},
+									key1: map[string]interface{}{"stringValue": val1},
+									key2: map[string]interface{}{"stringValue": val2},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	type elems struct {
+		Elem0 string
+		Elem1 string
+		Elem2 string
+	}
+	userVal := &struct {
+		S struct {
+			Inner1 elems
+			Inner2 elems
+		} `fcf:"Outer"`
+		M1 interface{}                       `fcf:"Outer"`
+		M2 map[string]interface{}            `fcf:"Outer"`
+		M3 map[string]map[string]interface{} `fcf:"Outer"`
+		M4 map[string]map[string]string      `fcf:"Outer"`
+	}{}
+	err := fcfVal.Decode(userVal)
+	if err != nil {
+		t.Error(err)
+	}
+	// spew.Dump(userVal)
+
+	// if val0 != userVal.Struct.NestedMap.Elem0 {
+	// 	t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Struct.NestedMap.Elem0)
+	// }
+	// if val1 != userVal.Struct.NestedMap.Elem1 {
+	// 	t.Errorf("%s: expected %q, got %q", key1, val1, userVal.Struct.NestedMap.Elem1)
+	// }
+	// if val2 != userVal.Struct.NestedMap.Elem2 {
+	// 	t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Struct.NestedMap.Elem2)
+	// }
+}
+
 // (string) (len=3) "Map": (map[string]interface {}) (len=1) {
 // 	(string) (len=8) "mapValue": (map[string]interface {}) (len=1) {
-// 		(string) (len=6) "fields": (map[string]interface {}) (len=2) {
-// 			(string) (len=3) "Baz": (map[string]interface {}) (len=1) {
-// 				(string) (len=12) "integerValue": (string) (len=2) "77"
-// 			},
-// 			(string) (len=3) "Foo": (map[string]interface {}) (len=1) {
-// 				(string) (len=11) "stringValue": (string) (len=3) "bar"
+// 		(string) (len=6) "fields": (map[string]interface {}) (len=3) {
+// 			(string) (len=6) "SubMap": (map[string]interface {}) (len=1) {
+// 				(string) (len=8) "mapValue": (map[string]interface {}) (len=1) {
+// 					(string) (len=6) "fields": (map[string]interface {}) (len=2) {
+// 						(string) (len=2) "x0": (map[string]interface {}) (len=1) {
+// 							(string) (len=11) "stringValue": (string) (len=4) "xfoo"
+// 						},
+// 						(string) (len=2) "x1": (map[string]interface {}) (len=1) {
+// 							(string) (len=11) "stringValue": (string) (len=4) "xbar"
+// 						}
+// 					}
+// 				}
 // 			}
 // 		}
 // 	}

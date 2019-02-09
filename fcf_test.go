@@ -560,6 +560,7 @@ func TestMapNested(t *testing.T) {
 									key0: map[string]interface{}{"stringValue": val0},
 									key1: map[string]interface{}{"stringValue": val1},
 									key2: map[string]interface{}{"stringValue": val2},
+									// "foo": map[string]interface{}{"decimalValue": 2.5},
 								},
 							},
 						},
@@ -669,52 +670,54 @@ func TestMapNested(t *testing.T) {
 	compareL2("O4", testOuter, o4)
 }
 
-// func TestArray(t *testing.T) {
-// 	testVal := []string{"elem0", "elem1", "elem2"}
+func TestArray(t *testing.T) {
+	testVal := []string{"elem0", "elem1", "elem2"}
 
-// 	fcfVal := &struct {
-// 		Fields map[string]interface{}
-// 	}{
-// 		Fields: map[string]interface{}{
-// 			"arrayValue": map[string]interface{}{
-// 				"values": []interface{}{
-// 					map[string]interface{}{"stringValue": testVal[0]},
-// 					map[string]interface{}{"stringValue": testVal[1]},
-// 					map[string]interface{}{"stringValue": testVal[2]},
-// 				},
-// 			},
-// 		},
-// 	}
+	fcfVal := Value{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{
+				"arrayValue": map[string]interface{}{
+					"values": []interface{}{
+						map[string]interface{}{"stringValue": testVal[0]},
+						map[string]interface{}{"stringValue": testVal[1]},
+						map[string]interface{}{"stringValue": testVal[2]},
+					},
+				},
+			},
+		},
+	}
 
-// 	spew.Dump(fcfVal)
+	userVal := &struct {
+		Field []string
+		F1    []interface{} `fcf:"Field"`
+		F2    interface{}   `fcf:"Field"`
+	}{}
 
-// 	userVal := &struct {
-// 		Field []string
-// 	}{}
-// 	err := fcfVal.Decode(userVal)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	if len(testVal) != len(userVal.Field) {
-// 		t.Fatalf("array length mismatch: expected %v, got %v", testVal, userVal.Field)
-// 	}
-// 	for i, tVal := range testVal {
-// 		uVal := userVal.Field[i]
-// 		if tVal != uVal {
-// 			t.Errorf("idx %v: expected %q, got %q", i, tVal, uVal)
-// 		}
-// 	}
-// }
+	err := fcfVal.Decode(userVal)
+	if err != nil {
+		t.Error(err)
+	}
 
-// (string) (len=3) "arr": (map[string]interface {}) (len=1) {
-// 	(string) (len=10) "arrayValue": (map[string]interface {}) (len=1) {
-// 		(string) (len=6) "values": ([]interface {}) (len=2 cap=2) {
-// 			(map[string]interface {}) (len=1) {
-// 				(string) (len=11) "stringValue": (string) (len=5) "elem0"
-// 			},
-// 			(map[string]interface {}) (len=1) {
-// 				(string) (len=12) "integerValue": (string) (len=1) "4"
-// 			}
-// 		}
-// 	}
-// }
+	if len(testVal) != len(userVal.Field) {
+		t.Fatalf("array length mismatch: expected %v, got %v", testVal, userVal.Field)
+	}
+	for i, tVal := range testVal {
+		uVal := userVal.Field[i]
+		if tVal != uVal {
+			t.Errorf("idx %v: expected %q, got %q", i, tVal, uVal)
+		}
+	}
+	for i, tVal := range testVal {
+		uVal := userVal.F1[i]
+		if tVal != uVal {
+			t.Errorf("idx %v: expected %q, got %q", i, tVal, uVal)
+		}
+	}
+	f2 := userVal.F2.([]interface{})
+	for i, tVal := range testVal {
+		uVal := f2[i]
+		if tVal != uVal {
+			t.Errorf("idx %v: expected %q, got %q", i, tVal, uVal)
+		}
+	}
+}

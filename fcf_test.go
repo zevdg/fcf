@@ -516,7 +516,7 @@ func TestMapNested(t *testing.T) {
 			"Outer": map[string]interface{}{
 				"mapValue": map[string]interface{}{
 					"fields": map[string]interface{}{
-						"Inner1": map[string]interface{}{
+						"Inner": map[string]interface{}{
 							"mapValue": map[string]interface{}{
 								"fields": map[string]interface{}{
 									key0: map[string]interface{}{"stringValue": val0},
@@ -525,20 +525,21 @@ func TestMapNested(t *testing.T) {
 								},
 							},
 						},
-						"Inner2": map[string]interface{}{
-							"mapValue": map[string]interface{}{
-								"fields": map[string]interface{}{
-									key0: map[string]interface{}{"stringValue": val0},
-									key1: map[string]interface{}{"stringValue": val1},
-									key2: map[string]interface{}{"stringValue": val2},
-								},
-							},
-						},
+						// "Inner2": map[string]interface{}{
+						// 	"mapValue": map[string]interface{}{
+						// 		"fields": map[string]interface{}{
+						// 			key0: map[string]interface{}{"stringValue": val0},
+						// 			key1: map[string]interface{}{"stringValue": val1},
+						// 			key2: map[string]interface{}{"stringValue": val2},
+						// 		},
+						// 	},
+						// },
 					},
 				},
 			},
 		},
 	}
+
 	type elems struct {
 		Elem0 string
 		Elem1 string
@@ -546,49 +547,89 @@ func TestMapNested(t *testing.T) {
 	}
 	userVal := &struct {
 		S struct {
-			Inner1 elems
-			Inner2 elems
+			Inner elems
+			I1    interface{}            `fcf:"Inner"`
+			I2    map[string]interface{} `fcf:"Inner"`
+			I3    map[string]string      `fcf:"Inner"`
 		} `fcf:"Outer"`
-		M1 interface{}                       `fcf:"Outer"`
-		M2 map[string]interface{}            `fcf:"Outer"`
-		M3 map[string]map[string]interface{} `fcf:"Outer"`
-		M4 map[string]map[string]string      `fcf:"Outer"`
+		O1 interface{}                       `fcf:"Outer"`
+		O2 map[string]interface{}            `fcf:"Outer"`
+		O3 map[string]map[string]interface{} `fcf:"Outer"`
+		O4 map[string]map[string]string      `fcf:"Outer"`
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Error(err)
 	}
-	// spew.Dump(userVal)
+	if val0 != userVal.S.Inner.Elem0 {
+		t.Errorf("S.Inner.%s: expected %q, got %q", key0, val0, userVal.S.Inner.Elem0)
+	}
+	if val1 != userVal.S.Inner.Elem1 {
+		t.Errorf("S.Inner.%s: expected %q, got %q", key1, val1, userVal.S.Inner.Elem1)
+	}
+	if val2 != userVal.S.Inner.Elem2 {
+		t.Errorf("S.Inner.%s: expected %q, got %q", key2, val2, userVal.S.Inner.Elem2)
+	}
+	testInner := map[string]string{
+		key0: val0,
+		key1: val1,
+		key2: val2,
+	}
 
-	// if val0 != userVal.Struct.NestedMap.Elem0 {
-	// 	t.Errorf("%s: expected %q, got %q", key0, val0, userVal.Struct.NestedMap.Elem0)
-	// }
-	// if val1 != userVal.Struct.NestedMap.Elem1 {
-	// 	t.Errorf("%s: expected %q, got %q", key1, val1, userVal.Struct.NestedMap.Elem1)
-	// }
-	// if val2 != userVal.Struct.NestedMap.Elem2 {
-	// 	t.Errorf("%s: expected %q, got %q", key2, val2, userVal.Struct.NestedMap.Elem2)
-	// }
+	compareL1 := func(name string, testMap map[string]string, usrMap map[string]interface{}) {
+		if len(testMap) != len(usrMap) {
+			t.Errorf("%s: expected %v, got %v", name, testMap, usrMap)
+		} else {
+			for key, tVal := range testMap {
+				if tVal != usrMap[key] {
+					t.Errorf("%s[%s]: expected %q, got %q", name, key, tVal, usrMap[key])
+				}
+			}
+		}
+	}
+
+	compareL1("I1", testInner, userVal.S.I1.(map[string]interface{}))
+	compareL1("I2", testInner, userVal.S.I2)
+	// convert to map[string]interface{}
+	i3 := map[string]interface{}{}
+	for k, v := range userVal.S.I3 {
+		i3[k] = v
+	}
+	compareL1("I3", testInner, i3)
+
+	testOuter := map[string]map[string]string{
+		"Inner": testInner,
+		// "Inner2": testInner,
+	}
+
+	compareL2 := func(name string, testMap map[string]map[string]string, usrMap map[string]interface{}) {
+		if len(testOuter) != len(usrMap) {
+			t.Errorf("%s: expected %v, got %v", name, testInner, usrMap)
+		} else {
+			for key, tVal := range testOuter {
+				compareL1(name, tVal, usrMap[key].(map[string]interface{}))
+			}
+		}
+	}
+	compareL2("O1", testOuter, userVal.O1.(map[string]interface{}))
+	compareL2("O2", testOuter, userVal.O2)
+	// convert to map[string]interface{}
+	o3 := map[string]interface{}{}
+	for k, v := range userVal.O3 {
+		o3[k] = v
+	}
+	compareL2("O3", testOuter, o3)
+	// convert to map[string]interface{}
+	o4 := map[string]interface{}{}
+	for k1, v1 := range userVal.O4 {
+		inner := map[string]interface{}{}
+		for k2, v2 := range v1 {
+			inner[k2] = v2
+		}
+		o4[k1] = inner
+	}
+	compareL2("O4", testOuter, o4)
 }
-
-// (string) (len=3) "Map": (map[string]interface {}) (len=1) {
-// 	(string) (len=8) "mapValue": (map[string]interface {}) (len=1) {
-// 		(string) (len=6) "fields": (map[string]interface {}) (len=3) {
-// 			(string) (len=6) "SubMap": (map[string]interface {}) (len=1) {
-// 				(string) (len=8) "mapValue": (map[string]interface {}) (len=1) {
-// 					(string) (len=6) "fields": (map[string]interface {}) (len=2) {
-// 						(string) (len=2) "x0": (map[string]interface {}) (len=1) {
-// 							(string) (len=11) "stringValue": (string) (len=4) "xfoo"
-// 						},
-// 						(string) (len=2) "x1": (map[string]interface {}) (len=1) {
-// 							(string) (len=11) "stringValue": (string) (len=4) "xbar"
-// 						}
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// },
 
 // func TestArray(t *testing.T) {
 // 	testVal := []string{"elem0", "elem1", "elem2"}

@@ -28,10 +28,10 @@ type Value struct {
 	UpdateTime time.Time              `json:"updateTime"`
 }
 
-// type Geopoint struct {
-// 	Latitude  float64
-// 	Longitude float64
-// }
+type GeoPoint struct {
+	Latitude  float64 `fcf:"latitude"`
+	Longitude float64 `fcf:"longitude"`
+}
 
 // Decode reads the raw data from the fcf Value
 // and stores it in the user value pointed to by u
@@ -54,7 +54,8 @@ func assertTypeMatch(userType reflect.Type, fcfType string) error {
 		(fcfType == "mapValue" && (userKind == reflect.Struct || userKind == reflect.Map)) ||
 		((fcfType == "stringValue" || fcfType == "referenceValue") && userKind == reflect.String) ||
 		(fcfType == "booleanValue" && userKind == reflect.Bool) ||
-		fcfType == "nullValue" {
+		(fcfType == "geoPointValue" && userKind == reflect.Struct) ||
+		fcfType == "nullValue" || fcfType == "" {
 		return nil
 	}
 	return fmt.Errorf("type mismatch: Cannot unmarshal firestore %s into a %s field", fcfType, userKind)
@@ -130,13 +131,6 @@ func (f dynamicField) Set(newVal reflect.Value) {
 	f.parent.SetMapIndex(f.key, newVal)
 }
 
-func d(prefix string, x reflect.Value) {
-	fmt.Printf("%s: %s\n", prefix, info(x))
-}
-func info(x reflect.Value) string {
-	return fmt.Sprintf("%v | %v | %v\n", x.Kind(), x.Type(), x)
-}
-
 type field interface {
 	Name() string
 	FcfType() string
@@ -151,7 +145,11 @@ type setter interface {
 }
 
 func unwrap(wrappedVal reflect.Value) (unwrappedVal reflect.Value, fcfType string) {
-	wrappedVal = wrappedVal.Elem() // sheds interface{} outer layer to reveal map[string]interface{}
+	wrappedVal = wrappedVal.Elem() // sheds interface{} outer layer
+	if wrappedVal.Kind() != reflect.Map {
+		// raw value special case (e.g. GeoPoint fields)
+		return wrappedVal, ""
+	}
 	fcfUnionType := wrappedVal.MapKeys()[0]
 	return wrappedVal.MapIndex(fcfUnionType).Elem(), fcfUnionType.String()
 }
@@ -191,7 +189,6 @@ func getFields(fcfMap reflect.Value, uVal setter) (fields []field, err error) {
 				continue
 			}
 			fcfVal, fcfType := unwrap(wrappedVal)
-
 			fieldVal := usrVal.Field(i)
 			if fieldVal.Kind() == reflect.Ptr && fcfType != "nullValue" {
 				if fieldVal.IsNil() {
@@ -269,7 +266,10 @@ func unmarshal(fcfMap reflect.Value, usrVal setter) error {
 			fcfVal = reflect.Zero(fieldType)
 
 		case "mapValue":
-			err = unmarshal(fcfVal.MapIndex(reflect.ValueOf("fields")).Elem(), field)
+			fcfVal = fcfVal.MapIndex(reflect.ValueOf("fields")).Elem()
+			fallthrough
+		case "geoPointValue":
+			err = unmarshal(fcfVal, field)
 			if err != nil {
 				return fmt.Errorf("Error on field %v: %v", field.Name(), err)
 			}
@@ -284,6 +284,8 @@ func unmarshal(fcfMap reflect.Value, usrVal setter) error {
 
 	return nil
 }
+
+// Conversions
 
 func convReference(fcfVal reflect.Value) reflect.Value {
 	return reflect.ValueOf(strings.Split(fcfVal.String(), "/databases/(default)/documents")[1])
@@ -319,4 +321,13 @@ func convIntegerToFloat(fcfVal reflect.Value, bits int) reflect.Value {
 		panic(err) // shouldn't ever happen?
 	}
 	return reflect.ValueOf(val)
+}
+
+// Helpers
+
+func d(prefix string, x reflect.Value) {
+	fmt.Printf("%s: %s\n", prefix, info(x))
+}
+func info(x reflect.Value) string {
+	return fmt.Sprintf("%v | %v | %v\n", x.Kind(), x.Type(), x)
 }

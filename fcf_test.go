@@ -289,6 +289,44 @@ func TestTimestamp(t *testing.T) {
 	}
 }
 
+func TestGeoPoint(t *testing.T) {
+	testLat, testLong := 26.357896, 127.783809
+	fcfVal := Value{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{
+				"geoPointValue": map[string]interface{}{
+					"latitude":  testLat,
+					"longitude": testLong,
+				},
+			},
+		},
+	}
+
+	userVal := &struct {
+		Field  GeoPoint
+		Custom struct {
+			Lat  float32 `fcf:"latitude"`
+			Long float32 `fcf:"longitude"`
+		} `fcf:"Field"`
+	}{}
+	err := fcfVal.Decode(userVal)
+	if err != nil {
+		t.Error(err)
+	}
+	if userVal.Field.Latitude != testLat {
+		t.Errorf("expected latitude %v, got %v", testLat, userVal.Field.Latitude)
+	}
+	if userVal.Field.Longitude != testLong {
+		t.Errorf("expected longitude %v, got %v", testLong, userVal.Field.Longitude)
+	}
+	if userVal.Custom.Lat != float32(testLat) {
+		t.Errorf("expected latitude %v, got %v", testLat, userVal.Field.Latitude)
+	}
+	if userVal.Custom.Long != float32(testLong) {
+		t.Errorf("expected longitude %v, got %v", testLong, userVal.Field.Longitude)
+	}
+}
+
 // func TestBytes(t *testing.T) {
 // 	testVal := []byte("foo")
 // 	fcfVal := &struct {

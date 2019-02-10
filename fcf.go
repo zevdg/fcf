@@ -1,6 +1,7 @@
 package fcf // import "github.com/zevdg/fcf"
 
 import (
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -48,12 +49,16 @@ func assertTypeMatch(userType reflect.Type, fcfType string) error {
 		return fmt.Errorf("type mismatch: Cannot unmarshal firestore values into non-empty interface: %v", userType)
 	}
 
+	var byteSlice []byte
+	byteSliceType := reflect.TypeOf(byteSlice)
+
 	if (fcfType == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
 		(fcfType == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
 		(fcfType == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||
+		((fcfType == "stringValue" || fcfType == "referenceValue") && userKind == reflect.String) ||
 		(fcfType == "mapValue" && (userKind == reflect.Struct || userKind == reflect.Map)) ||
 		(fcfType == "arrayValue" && userKind == reflect.Slice) ||
-		((fcfType == "stringValue" || fcfType == "referenceValue") && userKind == reflect.String) ||
+		(fcfType == "bytesValue" && userType == byteSliceType) ||
 		(fcfType == "booleanValue" && userKind == reflect.Bool) ||
 		(fcfType == "geoPointValue" && userKind == reflect.Struct) ||
 		fcfType == "nullValue" || fcfType == "" {
@@ -373,6 +378,7 @@ func unmarshal(fcfMap reflect.Value, usrVal fieldBag) error {
 }
 
 // Conversions
+
 func setBasicType(field field) error {
 	fcfVal := field.Fcf()
 	fieldType := field.Type()
@@ -382,6 +388,12 @@ func setBasicType(field field) error {
 
 	case "timestampValue":
 		fcfVal = convTimestamp(fcfVal)
+
+	case "bytesValue":
+		fcfVal = convBytes(fcfVal)
+
+	case "nullValue":
+		fcfVal = reflect.Zero(fieldType)
 
 	case "integerValue":
 		if fieldType.Kind() == reflect.Interface {
@@ -395,14 +407,19 @@ func setBasicType(field field) error {
 		} else {
 			fcfVal = convIntegerToFloat(fcfVal, bits)
 		}
-
-	case "nullValue":
-		fcfVal = reflect.Zero(fieldType)
 	}
 
 	fcfVal = fcfVal.Convert(fieldType)
 	field.Set(fcfVal)
 	return nil
+}
+
+func convBytes(fcfVal reflect.Value) reflect.Value {
+	data, err := base64.StdEncoding.DecodeString(fcfVal.String())
+	if err != nil {
+		panic(err) //shouldn't happen
+	}
+	return reflect.ValueOf(data)
 }
 
 func convReference(fcfVal reflect.Value) reflect.Value {

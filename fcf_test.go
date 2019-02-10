@@ -1,6 +1,8 @@
 package fcf
 
 import (
+	"bytes"
+	"encoding/base64"
 	"math"
 	"strconv"
 	"testing"
@@ -20,7 +22,7 @@ func TestString(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != testVal {
 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
@@ -38,7 +40,7 @@ func TestMissingFields(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != "" {
 		t.Errorf("expected %q, got %q", "", userVal.Field)
@@ -62,7 +64,7 @@ func TestTag(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != testVal {
 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
@@ -83,7 +85,7 @@ func TestReference(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != testVal {
 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
@@ -103,7 +105,7 @@ func TestBool(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != testVal {
 		t.Errorf("expected %v, got %v", testVal, userVal.Field)
@@ -123,7 +125,7 @@ func TestBoolPtr(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if *userVal.Field != testVal {
 		t.Errorf("expected %v, got %v", testVal, userVal.Field)
@@ -146,7 +148,7 @@ func TestDynamic(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if userVal.String.(string) != testString {
@@ -194,7 +196,7 @@ func TestInteger(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Int != testVal {
 		t.Errorf("Int field failed: expected %v, got %v", testVal, userVal.Int)
@@ -253,7 +255,7 @@ func TestDecimal(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if math.Round(float64(userVal.Float32)-testFloat32) != 0 {
 		t.Errorf("expected %f, got %f", float64(testFloat32), userVal.Float32)
@@ -282,7 +284,7 @@ func TestTimestamp(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != testVal {
 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
@@ -311,7 +313,7 @@ func TestGeoPoint(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field.Latitude != testLat {
 		t.Errorf("expected latitude %v, got %v", testLat, userVal.Field.Latitude)
@@ -327,26 +329,25 @@ func TestGeoPoint(t *testing.T) {
 	}
 }
 
-// func TestBytes(t *testing.T) {
-// 	testVal := []byte("foo")
-// 	fcfVal := &struct {
-// 		Fields map[string]interface{}
-// 	}{make(map[string]interface{})}
-// 	fcfVal.Fields["Field"] = map[string]interface{}{
-// 		"bytesValue": testVal,
-// 	}
+func TestBytes(t *testing.T) {
+	testVal := []byte("foobar")
+	fcfVal := Value{
+		Fields: map[string]interface{}{
+			"Field": map[string]interface{}{"bytesValue": base64.StdEncoding.EncodeToString(testVal)},
+		},
+	}
 
-// 	userVal := &struct {
-// 		Field []byte
-// 	}{}
-// 	err := fcfVal.Decode(userVal)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	if userVal.Field != testVal {
-// 		t.Errorf("expected %q, got %q", testVal, userVal.Field)
-// 	}
-// }
+	userVal := &struct {
+		Field []byte
+	}{}
+	err := fcfVal.Decode(userVal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Compare(userVal.Field, testVal) != 0 {
+		t.Errorf("expected %q, got %q", testVal, userVal.Field)
+	}
+}
 
 func TestNull(t *testing.T) {
 	fcfVal := Value{
@@ -366,7 +367,7 @@ func TestNull(t *testing.T) {
 	}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if userVal.Field != "" {
 		t.Errorf("expected empty string, got %q", userVal.Field)
@@ -403,7 +404,7 @@ func TestMapAsStruct(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if val0 != userVal.Struct.Elem0 {
@@ -440,7 +441,7 @@ func TestMapStatic(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if 3 != len(userVal.Map) {
@@ -481,7 +482,7 @@ func TestMapDynamic(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if 3 != len(userVal.Map) {
@@ -522,7 +523,7 @@ func TestMapAsInterface(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	userMap, ok := userVal.Map.(map[string]interface{})
@@ -598,7 +599,7 @@ func TestMapNested(t *testing.T) {
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if val0 != userVal.S.Inner.Elem0 {
 		t.Errorf("S.Inner.%s: expected %q, got %q", key0, val0, userVal.S.Inner.Elem0)
@@ -695,7 +696,7 @@ func TestArray(t *testing.T) {
 
 	err := fcfVal.Decode(userVal)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if len(testVal) != len(userVal.Field) {

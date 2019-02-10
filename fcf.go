@@ -98,11 +98,11 @@ func (f structField) Set(newVal reflect.Value) {
 }
 
 type mapField struct {
-	parentName string
-	key        reflect.Value
-	fcfType    string
-	fcf        reflect.Value
-	parent     reflect.Value
+	name    string
+	key     reflect.Value
+	fcfType string
+	fcf     reflect.Value
+	parent  reflect.Value
 }
 
 func (f mapField) String() string {
@@ -110,7 +110,7 @@ func (f mapField) String() string {
 }
 
 func (f mapField) Name() string {
-	return fmt.Sprintf("%s[%q]", f.parentName, f.key)
+	return f.name
 }
 func (f mapField) FcfType() string {
 	return f.fcfType
@@ -138,11 +138,11 @@ func (f mapField) Set(newVal reflect.Value) {
 }
 
 type sliceField struct {
-	parentName string
-	i          int
-	fcfType    string
-	fcf        reflect.Value
-	parent     reflect.Value
+	name    string
+	i       int
+	fcfType string
+	fcf     reflect.Value
+	parent  reflect.Value
 }
 
 func (f sliceField) String() string {
@@ -150,7 +150,7 @@ func (f sliceField) String() string {
 }
 
 func (f sliceField) Name() string {
-	return fmt.Sprintf("%s[%d]", f.parentName, f.i)
+	return f.name
 }
 func (f sliceField) FcfType() string {
 	return f.fcfType
@@ -244,11 +244,11 @@ func getSliceFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err er
 
 		fcfFieldVal, fcfType := unwrapFcfVal(fcfVal.Index(i))
 		fields = append(fields, sliceField{
-			parentName: parentName,
-			i:          i,
-			fcfType:    fcfType,
-			fcf:        fcfFieldVal,
-			parent:     usrVal,
+			name:    fmt.Sprintf("%s[%d]", parentName, i),
+			i:       i,
+			fcfType: fcfType,
+			fcf:     fcfFieldVal,
+			parent:  usrVal,
 		})
 	}
 	return fields, nil
@@ -323,11 +323,11 @@ func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err erro
 	for _, key := range fcfVal.MapKeys() {
 		fcfFieldVal, fcfType := unwrapFcfVal(fcfVal.MapIndex(key))
 		fields = append(fields, mapField{
-			parentName: parentName,
-			key:        key,
-			fcfType:    fcfType,
-			fcf:        fcfFieldVal,
-			parent:     usrVal,
+			name:    fmt.Sprintf("%s[%q]", parentName, key),
+			key:     key,
+			fcfType: fcfType,
+			fcf:     fcfFieldVal,
+			parent:  usrVal,
 		})
 	}
 	return fields, nil

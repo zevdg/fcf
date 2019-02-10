@@ -29,6 +29,9 @@ type Value struct {
 	UpdateTime time.Time              `json:"updateTime"`
 }
 
+// GeoPoint is a convenience type provided for decoding geoPointValues
+// You can use your own type as long as it has has
+// the correct latitude/longitude struct tags
 type GeoPoint struct {
 	Latitude  float64 `fcf:"latitude"`
 	Longitude float64 `fcf:"longitude"`

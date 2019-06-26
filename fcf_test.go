@@ -3,10 +3,14 @@ package fcf
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestString(t *testing.T) {
@@ -546,6 +550,31 @@ func TestMapAsInterface(t *testing.T) {
 	}
 }
 
+// func TestStructInMap(t *testing.T) {
+
+// 	val0, val1, val2 := "foo", "bar", "baz"
+// 	fcfVal := Value{
+// 		Fields: map[string]interface{}{
+// 			"Outer": map[string]interface{}{
+// 				"mapValue": map[string]interface{}{
+// 					"fields": map[string]interface{}{
+// 						"Inner": map[string]interface{}{
+// 							"mapValue": map[string]interface{}{
+// 								"fields": map[string]interface{}{
+// 									"Elem0": map[string]interface{}{"stringValue": val0},
+// 									"Elem1": map[string]interface{}{"stringValue": val1},
+// 									"Elem2": map[string]interface{}{"stringValue": val2},
+// 								},
+// 							},
+// 						},
+// 					},
+// 				},
+// 			},
+// 		},
+// 	}
+
+// }
+
 func TestMapNested(t *testing.T) {
 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
 	val0, val1, val2 := "foo", "bar", "baz"
@@ -596,11 +625,17 @@ func TestMapNested(t *testing.T) {
 		O2 map[string]interface{}            `fcf:"Outer"`
 		O3 map[string]map[string]interface{} `fcf:"Outer"`
 		O4 map[string]map[string]string      `fcf:"Outer"`
+		// O5 map[string]elems                  `fcf:"Outer"`
+		O6 map[string]*elems `fcf:"Outer"`
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// dump("O5", userVal.O5)
+	dump("O6", userVal.O6)
+
 	if val0 != userVal.S.Inner.Elem0 {
 		t.Errorf("S.Inner.%s: expected %q, got %q", key0, val0, userVal.S.Inner.Elem0)
 	}
@@ -669,6 +704,14 @@ func TestMapNested(t *testing.T) {
 		o4[k1] = inner
 	}
 	compareL2("O4", testOuter, o4)
+}
+
+func dump(prefix string, v interface{}) {
+	for _, line := range strings.Split(spew.Sdump(v), "\n") {
+		if line != "" {
+			fmt.Printf("%s: %s\n", prefix, line)
+		}
+	}
 }
 
 func TestArray(t *testing.T) {

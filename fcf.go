@@ -59,7 +59,7 @@ func assertTypeMatch(userType reflect.Type, fcfType string) error {
 		(fcfType == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
 		(fcfType == "timestampValue" && userType.PkgPath() == "time" && userType.Name() == "Time") ||
 		((fcfType == "stringValue" || fcfType == "referenceValue") && userKind == reflect.String) ||
-		(fcfType == "mapValue" && (userKind == reflect.Struct || userKind == reflect.Map)) ||
+		(fcfType == "mapValue" && (userKind == reflect.Struct || userKind == reflect.Map || userKind == reflect.Ptr)) ||
 		(fcfType == "arrayValue" && userKind == reflect.Slice) ||
 		(fcfType == "bytesValue" && userType == byteSliceType) ||
 		(fcfType == "booleanValue" && userKind == reflect.Bool) ||
@@ -78,7 +78,7 @@ type structField struct {
 }
 
 func (f structField) String() string {
-	return fmt.Sprintf("structField{ %s - %s - %s }", f.name, f.fcfType, info(f.val))
+	return fmt.Sprintf("structField{ %s - %s | %s }", f.name, f.fcfType, info(f.val))
 }
 
 func (f structField) Name() string {
@@ -102,6 +102,7 @@ func (f structField) getOrInit() reflect.Value {
 }
 
 func (f structField) Set(newVal reflect.Value) {
+	fmt.Printf("structField set f: %+v ;; val: %+v ;; newVal: %+v\n", f, f.val, newVal)
 	f.val.Set(newVal)
 }
 
@@ -114,7 +115,7 @@ type mapField struct {
 }
 
 func (f mapField) String() string {
-	return fmt.Sprintf("mapField{ %s - %s - %s }", f.key, f.fcfType, info(f.parent))
+	return fmt.Sprintf("mapField{ %s - %s | %s }", f.key, f.fcfType, info(f.parent))
 }
 
 func (f mapField) Name() string {
@@ -154,7 +155,7 @@ type sliceField struct {
 }
 
 func (f sliceField) String() string {
-	return fmt.Sprintf("mapField{ %s - %s - %s }", f.Name(), f.fcfType, info(f.parent))
+	return fmt.Sprintf("mapField{ %s - %s | %s }", f.Name(), f.fcfType, info(f.parent))
 }
 
 func (f sliceField) Name() string {
@@ -299,6 +300,11 @@ func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName stri
 
 func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err error) {
 	usrVal, parentName := uVal.getOrInit(), uVal.Name()
+	fmt.Printf("usrVal: %+v, parentName: %+v\n", usrVal.Kind(), parentName)
+	if usrVal.Kind() == reflect.Ptr {
+		usrVal = reflect.New(usrVal.Type().Elem()).Elem()
+	}
+	fmt.Printf("usrVal: %+v, parentName: %+v\n", usrVal.Kind(), parentName)
 
 	if !((usrVal.Kind() == reflect.Interface && usrVal.Type().NumMethod() == 0) ||
 		usrVal.Kind() == reflect.Struct ||
@@ -359,6 +365,7 @@ func unmarshal(fcfMap reflect.Value, usrVal fieldBag) error {
 		if err != nil {
 			return fmt.Errorf("Error unmarshalling field %s: %v", field.Name(), err)
 		}
+		fmt.Printf("field: %+v\n", field)
 
 		switch field.FcfType() {
 		case "mapValue":
@@ -413,6 +420,7 @@ func setBasicType(field field) error {
 	}
 
 	fcfVal = fcfVal.Convert(fieldType)
+	fmt.Printf("fcfVal %+v\n", fcfVal)
 	field.Set(fcfVal)
 	return nil
 }
@@ -467,5 +475,5 @@ func d(prefix string, x reflect.Value) {
 	fmt.Printf("%s: %s\n", prefix, info(x))
 }
 func info(x reflect.Value) string {
-	return fmt.Sprintf("%v | %v | %v\n", x.Kind(), x.Type(), x)
+	return fmt.Sprintf("%v - %v - %v", x.Kind(), x.Type(), x)
 }

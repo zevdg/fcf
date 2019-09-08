@@ -771,10 +771,10 @@ func TestMapNestedOuterDynamic(t *testing.T) {
 	fcfVal := nestedTestVal(testInner)
 
 	userVal := &struct {
-		O1 interface{}                       `fcf:"Outer"`
-		O2 map[string]interface{}            `fcf:"Outer"`
-		O3 map[string]map[string]interface{} `fcf:"Outer"`
-		O4 map[string]map[string]string      `fcf:"Outer"`
+		M1 interface{}                       `fcf:"Outer"`
+		M2 map[string]interface{}            `fcf:"Outer"`
+		M3 map[string]map[string]interface{} `fcf:"Outer"`
+		M4 map[string]map[string]string      `fcf:"Outer"`
 	}{}
 	err := fcfVal.Decode(userVal)
 	if err != nil {
@@ -785,24 +785,24 @@ func TestMapNestedOuterDynamic(t *testing.T) {
 		"Inner": testInner,
 	}
 
-	compareOuterMap(t, "O1", testOuter, userVal.O1.(map[string]interface{}))
-	compareOuterMap(t, "O2", testOuter, userVal.O2)
+	compareOuterMap(t, "M1", testOuter, userVal.M1.(map[string]interface{}))
+	compareOuterMap(t, "M2", testOuter, userVal.M2)
 	// convert to map[string]interface{}
 	o3 := map[string]interface{}{}
-	for k, v := range userVal.O3 {
+	for k, v := range userVal.M3 {
 		o3[k] = v
 	}
-	compareOuterMap(t, "O3", testOuter, o3)
+	compareOuterMap(t, "M3", testOuter, o3)
 	// convert to map[string]interface{}
 	o4 := map[string]interface{}{}
-	for k1, v1 := range userVal.O4 {
+	for k1, v1 := range userVal.M4 {
 		inner := map[string]interface{}{}
 		for k2, v2 := range v1 {
 			inner[k2] = v2
 		}
 		o4[k1] = inner
 	}
-	compareOuterMap(t, "O4", testOuter, o4)
+	compareOuterMap(t, "M4", testOuter, o4)
 }
 
 // func dump(prefix string, v interface{}) {
@@ -842,30 +842,37 @@ func TestMapNestedOuterDynamic(t *testing.T) {
 // 	dump("O5", userVal.O5)
 // }
 
-// func TestMapNestedOuterDynamicInnerStaticPtr(t *testing.T) {
+func TestMapNestedOuterDynamicInnerStaticPtr(t *testing.T) {
 
-// 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
-// 	val0, val1, val2 := "foo", "bar", "baz"
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", "bar", "baz"
 
-// 	fcfVal := nestedTestVal(
-// 		map[string]string{
-// 			key0: val0,
-// 			key1: val1,
-// 			key2: val2,
-// 		})
+	fcfVal := nestedTestVal(
+		map[string]string{
+			key0: val0,
+			key1: val1,
+			key2: val2,
+		})
 
-// 	type elems struct {
-// 		Elem0 string
-// 		Elem1 string
-// 		Elem2 string
-// 	}
-// 	userVal := &struct {
-// 		O6 map[string]*elems `fcf:"Outer"`
-// 	}{}
-// 	err := fcfVal.Decode(userVal)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	dump("O6", userVal.O6)
-// }
+	type elems struct {
+		Elem0 string
+		Elem1 string
+		Elem2 string
+	}
+	userVal := &struct {
+		M map[string]*elems `fcf:"Outer"`
+	}{}
+	err := fcfVal.Decode(userVal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if val0 != userVal.M["Inner"].Elem0 {
+		t.Errorf("M[\"Inner\"].%s: expected %q, got %q", key0, val0, userVal.M["Inner"].Elem0)
+	}
+	if val1 != userVal.M["Inner"].Elem1 {
+		t.Errorf("M[\"Inner\"].%s: expected %q, got %q", key1, val1, userVal.M["Inner"].Elem1)
+	}
+	if val2 != userVal.M["Inner"].Elem2 {
+		t.Errorf("M[\"Inner\"].%s: expected %q, got %q", key2, val2, userVal.M["Inner"].Elem2)
+	}
+}

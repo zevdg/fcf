@@ -43,6 +43,9 @@ func (v Value) Decode(u interface{}) error {
 	return unmarshal(reflect.Indirect(reflect.ValueOf(v)).FieldByName("Fields"), root{reflect.Indirect(reflect.ValueOf(u))})
 }
 
+var byteSlice []byte
+var byteSliceType = reflect.TypeOf(byteSlice)
+
 func assertTypeMatch(userType reflect.Type, fcfType string) error {
 	userKind := userType.Kind()
 	if userKind == reflect.Interface {
@@ -51,9 +54,9 @@ func assertTypeMatch(userType reflect.Type, fcfType string) error {
 		}
 		return fmt.Errorf("type mismatch: Cannot unmarshal firestore values into non-empty interface: %v", userType)
 	}
-
-	var byteSlice []byte
-	byteSliceType := reflect.TypeOf(byteSlice)
+	if userKind == reflect.Ptr {
+		userKind = userType.Elem().Kind()
+	}
 
 	if (fcfType == "integerValue" && reflect.Int <= userKind && userKind <= reflect.Float64) ||
 		(fcfType == "doubleValue" && (userKind == reflect.Float32 || userKind == reflect.Float64)) ||
@@ -137,7 +140,11 @@ func (f mapField) getOrInit() reflect.Value {
 	if v.IsValid() {
 		return v
 	}
-	f.Set(reflect.Zero(f.Type()))
+	if f.Type().Kind() == reflect.Ptr {
+		f.Set(reflect.New(f.Type().Elem()))
+	} else {
+		f.Set(reflect.Zero(f.Type()))
+	}
 	return f.parent.MapIndex(f.key)
 }
 
@@ -263,6 +270,7 @@ func getSliceFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err er
 }
 
 func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName string) (fields []field) {
+	usrVal = reflect.Indirect(usrVal)
 	for i := 0; i < usrVal.Type().NumField(); i++ {
 		fieldMeta := usrVal.Type().Field(i)
 		key := fieldMeta.Name
@@ -299,18 +307,22 @@ func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName stri
 
 func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err error) {
 	usrVal, parentName := uVal.getOrInit(), uVal.Name()
+	kind := usrVal.Kind()
+	if kind == reflect.Ptr {
+		kind = usrVal.Elem().Kind()
 
-	if !((usrVal.Kind() == reflect.Interface && usrVal.Type().NumMethod() == 0) ||
-		usrVal.Kind() == reflect.Struct ||
-		usrVal.Kind() == reflect.Map) {
-		typeStr := usrVal.Kind().String()
+	}
+	if !((kind == reflect.Interface && usrVal.Type().NumMethod() == 0) ||
+		kind == reflect.Struct ||
+		kind == reflect.Map) {
+		typeStr := kind.String()
 		if usrVal.IsValid() {
 			typeStr = usrVal.Type().String()
 		}
 		return nil, fmt.Errorf("Can only unmarshal object/map types into Struct, Map, or empty interface fields, not %v", typeStr)
 	}
 
-	if usrVal.Kind() == reflect.Struct {
+	if kind == reflect.Struct {
 		// get fields from usrVal
 		return getStructFields(fcfVal, usrVal, parentName), nil
 	}
@@ -318,7 +330,7 @@ func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err erro
 	// usrVal is Map, Slice, or empty interface
 	// get fields from fcfVal
 	var mapType reflect.Type
-	if usrVal.Kind() == reflect.Interface {
+	if kind == reflect.Interface {
 		var x map[string]interface{}
 		mapType = reflect.TypeOf(x)
 	} else {

@@ -136,16 +136,22 @@ func (f mapField) Type() reflect.Type {
 }
 
 func (f mapField) getOrInit() reflect.Value {
-	v := f.parent.MapIndex(f.key)
-	if v.IsValid() {
-		return v
+	return initField(f)
+}
+
+func initField(f field) reflect.Value {
+	if f.Type().Kind() == reflect.Struct {
+		ref := reflect.New(f.Type())
+		return ref.Elem()
 	}
 	if f.Type().Kind() == reflect.Ptr {
-		f.Set(reflect.New(f.Type().Elem()))
-	} else {
-		f.Set(reflect.Zero(f.Type()))
+		return reflect.New(f.Type().Elem())
 	}
-	return f.parent.MapIndex(f.key)
+	return reflect.Zero(f.Type())
+}
+
+func isReferenceType(k reflect.Kind) bool {
+	return k == reflect.Ptr || k == reflect.Slice || k == reflect.Map || k == reflect.Interface
 }
 
 func (f mapField) Set(newVal reflect.Value) {
@@ -180,12 +186,7 @@ func (f sliceField) Type() reflect.Type {
 }
 
 func (f sliceField) getOrInit() reflect.Value {
-	if f.parent.Len() > f.i {
-		return f.parent.Index(f.i)
-	}
-	v := reflect.Zero(f.Type())
-	f.parent = reflect.Append(f.parent, v)
-	return v
+	return initField(f)
 }
 
 func (f sliceField) Set(newVal reflect.Value) {
@@ -232,16 +233,14 @@ func unwrapFcfVal(wrappedVal reflect.Value) (unwrappedVal reflect.Value, fcfType
 	return wrappedVal.MapIndex(fcfUnionType).Elem(), fcfUnionType.String()
 }
 
-func getSliceFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err error) {
-	usrVal, parentName := uVal.getOrInit(), uVal.Name()
-
+func getSliceFields(fcfVal reflect.Value, usrVal reflect.Value, parentName string) (reflect.Value, []field, error) {
 	if !(usrVal.Kind() == reflect.Slice ||
 		(usrVal.Kind() == reflect.Interface && usrVal.Type().NumMethod() == 0)) {
 		typeStr := usrVal.Kind().String()
 		if usrVal.IsValid() {
 			typeStr = usrVal.Type().String()
 		}
-		return nil, fmt.Errorf("Can only unmarshal array types into slice or empty interface fields, not %v", typeStr)
+		return reflect.Value{}, nil, fmt.Errorf("Can only unmarshal array types into slice or empty interface fields, not %v", typeStr)
 	}
 
 	var sliceType reflect.Type
@@ -253,8 +252,8 @@ func getSliceFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err er
 	}
 	if usrVal.IsNil() {
 		usrVal = reflect.MakeSlice(sliceType, fcfVal.Len(), fcfVal.Len())
-		uVal.Set(usrVal)
 	}
+	fields := make([]field, 0, fcfVal.Len())
 	for i := 0; i < fcfVal.Len(); i++ {
 
 		fcfFieldVal, fcfType := unwrapFcfVal(fcfVal.Index(i))
@@ -266,13 +265,14 @@ func getSliceFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err er
 			parent:  usrVal,
 		})
 	}
-	return fields, nil
+	return usrVal, fields, nil
 }
 
-func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName string) (fields []field) {
-	usrVal = reflect.Indirect(usrVal)
-	for i := 0; i < usrVal.Type().NumField(); i++ {
-		fieldMeta := usrVal.Type().Field(i)
+func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName string) (reflect.Value, []field, error) {
+	usrValElem := reflect.Indirect(usrVal)
+	fields := make([]field, 0, usrValElem.Type().NumField())
+	for i := 0; i < usrValElem.Type().NumField(); i++ {
+		fieldMeta := usrValElem.Type().Field(i)
 		key := fieldMeta.Name
 		if tag := fieldMeta.Tag.Get("fcf"); tag != "" {
 			key = tag
@@ -284,7 +284,7 @@ func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName stri
 			continue
 		}
 		fcfFieldVal, fcfType := unwrapFcfVal(wrappedVal)
-		fieldVal := usrVal.Field(i)
+		fieldVal := usrValElem.Field(i)
 		if fieldVal.Kind() == reflect.Ptr && fcfType != "nullValue" {
 			if fieldVal.IsNil() {
 				fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
@@ -302,11 +302,10 @@ func getStructFields(fcfVal reflect.Value, usrVal reflect.Value, parentName stri
 			val:     fieldVal,
 		})
 	}
-	return fields
+	return usrVal, fields, nil
 }
 
-func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err error) {
-	usrVal, parentName := uVal.getOrInit(), uVal.Name()
+func getMapFields(fcfVal reflect.Value, usrVal reflect.Value, parentName string) (reflect.Value, []field, error) {
 	kind := usrVal.Kind()
 	if kind == reflect.Ptr {
 		kind = usrVal.Elem().Kind()
@@ -319,12 +318,12 @@ func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err erro
 		if usrVal.IsValid() {
 			typeStr = usrVal.Type().String()
 		}
-		return nil, fmt.Errorf("Can only unmarshal object/map types into Struct, Map, or empty interface fields, not %v", typeStr)
+		return reflect.Value{}, nil, fmt.Errorf("Can only unmarshal object/map types into Struct, Map, or empty interface fields, not %v", typeStr)
 	}
 
 	if kind == reflect.Struct {
 		// get fields from usrVal
-		return getStructFields(fcfVal, usrVal, parentName), nil
+		return getStructFields(fcfVal, usrVal, parentName)
 	}
 
 	// usrVal is Map, Slice, or empty interface
@@ -338,8 +337,8 @@ func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err erro
 	}
 	if usrVal.IsNil() {
 		usrVal = reflect.MakeMapWithSize(mapType, len(fcfVal.MapKeys()))
-		uVal.Set(usrVal)
 	}
+	fields := make([]field, 0, len(fcfVal.MapKeys()))
 	for _, key := range fcfVal.MapKeys() {
 		fcfFieldVal, fcfType := unwrapFcfVal(fcfVal.MapIndex(key))
 		fields = append(fields, mapField{
@@ -350,18 +349,19 @@ func getMapFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err erro
 			parent:  usrVal,
 		})
 	}
-	return fields, nil
+	return usrVal, fields, nil
 }
 
-func getFields(fcfVal reflect.Value, uVal fieldBag) (fields []field, err error) {
+func getFields(fcfVal reflect.Value, usrVal fieldBag) (reflect.Value, []field, error) {
+	uVal, parentName := usrVal.getOrInit(), usrVal.Name()
 	if fcfVal.Kind() == reflect.Slice {
-		return getSliceFields(fcfVal, uVal)
+		return getSliceFields(fcfVal, uVal, parentName)
 	}
-	return getMapFields(fcfVal, uVal)
+	return getMapFields(fcfVal, uVal, parentName)
 }
 
 func unmarshal(fcfMap reflect.Value, usrVal fieldBag) error {
-	fields, err := getFields(fcfMap, usrVal)
+	uVal, fields, err := getFields(fcfMap, usrVal)
 	if err != nil {
 		return err
 	}
@@ -389,6 +389,7 @@ func unmarshal(fcfMap reflect.Value, usrVal fieldBag) error {
 			return err
 		}
 	}
+	usrVal.Set(uVal)
 	return nil
 }
 

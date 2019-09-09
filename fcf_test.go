@@ -813,34 +813,40 @@ func TestMapNestedOuterDynamic(t *testing.T) {
 // 	}
 // }
 
-// func TestMapNestedOuterDynamicInnerStatic(t *testing.T) {
+func TestMapNestedOuterDynamicInnerStatic(t *testing.T) {
 
-// 	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
-// 	val0, val1, val2 := "foo", "bar", "baz"
+	key0, key1, key2 := "Elem0", "Elem1", "Elem2"
+	val0, val1, val2 := "foo", "bar", "baz"
 
-// 	fcfVal := nestedTestVal(
-// 		map[string]string{
-// 			key0: val0,
-// 			key1: val1,
-// 			key2: val2,
-// 		})
+	fcfVal := nestedTestVal(
+		map[string]string{
+			key0: val0,
+			key1: val1,
+			key2: val2,
+		})
 
-// 	type elems struct {
-// 		Elem0 string
-// 		Elem1 string
-// 		Elem2 string
-// 	}
-// 	userVal := &struct {
-// 		O5 map[string]elems `fcf:"Outer"`
-// 	}{}
-
-// 	err := fcfVal.Decode(userVal)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	dump("O5", userVal.O5)
-// }
+	type elems struct {
+		Elem0 string
+		Elem1 string
+		Elem2 string
+	}
+	userVal := &struct {
+		M map[string]*elems `fcf:"Outer"`
+	}{}
+	err := fcfVal.Decode(userVal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if val0 != userVal.M["Inner"].Elem0 {
+		t.Errorf("M[\"Inner\"].%s: expected %q, got %q", key0, val0, userVal.M["Inner"].Elem0)
+	}
+	if val1 != userVal.M["Inner"].Elem1 {
+		t.Errorf("M[\"Inner\"].%s: expected %q, got %q", key1, val1, userVal.M["Inner"].Elem1)
+	}
+	if val2 != userVal.M["Inner"].Elem2 {
+		t.Errorf("M[\"Inner\"].%s: expected %q, got %q", key2, val2, userVal.M["Inner"].Elem2)
+	}
+}
 
 func TestMapNestedOuterDynamicInnerStaticPtr(t *testing.T) {
 
